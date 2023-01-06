@@ -47,7 +47,7 @@ class ICT():
 			assert param[1].requires_grad  # finetune all LM parameters
 			trainable_parameters.append(param[1])
 
-		optimizer = AdamW(params=trainable_parameters, lr=lr)
+		optimizer = torch.optim.AdamW(params=trainable_parameters, lr=lr)
 		optimizer.zero_grad()
 
 		task_num_examples = [len(task2examples[task]) for task in task2examples]
