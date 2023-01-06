@@ -2,7 +2,7 @@ from transformers import AutoTokenizer
 from verbalized_model import VerbalizedModel
 import torch
 import os
-from transformers.optimization import AdamW, get_linear_schedule_with_warmup
+from transformers.optimization import get_linear_schedule_with_warmup
 import random
 import numpy as np
 from data_loader import Data_loader
