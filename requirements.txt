@@ -1,5 +1,4 @@
 tqdm
-pickle
 transformers
 torch
 numpy

@@ -2,7 +2,7 @@ from transformers import AutoTokenizer
 from verbalized_model import VerbalizedModel
 import torch
 import os
-from transformers.optimization import AdamW, get_linear_schedule_with_warmup
+from transformers.optimization import get_linear_schedule_with_warmup
 import random
 import numpy as np
 from data_loader import Data_loader
@@ -47,7 +47,7 @@ class ICT():
 			assert param[1].requires_grad  # finetune all LM parameters
 			trainable_parameters.append(param[1])
 
-		optimizer = AdamW(params=trainable_parameters, lr=lr)
+		optimizer = torch.optim.AdamW(params=trainable_parameters, lr=lr)
 		optimizer.zero_grad()
 
 		task_num_examples = [len(task2examples[task]) for task in task2examples]

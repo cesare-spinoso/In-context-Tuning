@@ -27,7 +27,7 @@ if __name__ == '__main__':
 
 	output_dir = '../example/%dshot_fold%d/' % (num_demonstrations, fold_idx)
 	num_epochs, lr = 15, 3e-6
-	ict = ICT(model_name='bert-base-cased', task_format='mlm', device='cuda:1')
+	ict = ICT(model_name='bert-base-cased', task_format='mlm', device='cuda')
 	# meta-train
 	ict.meta_train(train_task2examples, train_task2templates, task2verbalizers={task: verbalizers for task in train_tasks},
 				   num_demonstrations=5, example_delimiter=' ', allow_label_overlap=False,
