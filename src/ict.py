@@ -65,8 +65,8 @@ Task2Verbalizers = dict[Task, list[Verbalizer]]
 """List of all the verbalizers for a given task.
 e.g. For LAMA, each task will have the same list of verbalizers."""
 
+# TODO
 Task2Preds = None
-
 Task2Scores = None
 
 class ICT:
@@ -120,7 +120,7 @@ class ICT:
 		num_epochs: int,
 		bsz: int,
 		output_dir: Union[str, Path],
-	):
+	) -> None:
 		"""Run the meta-training described in the paper."""
 		# Verify that passed arguments are valid
 		assert task2examples.keys() == task2templates.keys()
