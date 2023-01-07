@@ -1,80 +1,158 @@
 import random
+from typing import Literal
+from transformers import PreTrainedTokenizer
+from ict import Example, Task, Task2Verbalizers, Template, Verbalizer, ModelInput
 
 
-class Data_loader():
+class DataLoader:
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizer,
+        task_format: Literal["mlm", "clm"],
+        task2verbalizers: Task2Verbalizers,
+        example_delimiter: str,
+        device: str,
+    ):
+        assert self.task_format in ["mlm", "clm"]
 
-    def __init__(self, tokenizer, task_format, task2verbalizers, example_delimiter, device):
         self.tokenizer = tokenizer
         self.task_format = task_format
-        assert self.task_format in ['mlm', 'clm']
+        self.task2verbalizers = task2verbalizers
         self.example_delimiter = example_delimiter
         self.device = device
 
-        self.task2verbalizers = task2verbalizers
-        self.task2verbalizer_worids = {}
+        # Get the token ids of each verbalizer for each task
+        self.task2verbalizer_worids: dict[Task, list[int]] = {}
         for task in task2verbalizers:
-            self.task2verbalizer_worids[task] = [self.tokenizer._convert_token_to_id_with_added_voc(verbalizer)
-                                                 for verbalizer in task2verbalizers[task]]
             verbalizer_wordids = []
             for verbalizer in task2verbalizers[task]:
-                wordids = self.tokenizer(verbalizer, add_special_tokens=False)['input_ids']
-                assert len(wordids) == 1 # current code assumes that each verbalizer is one token.
+                wordids = self.tokenizer(verbalizer, add_special_tokens=False)[
+                    "input_ids"
+                ]
+                assert (
+                    len(wordids) == 1
+                )  # current code assumes that each verbalizer is one token.
                 verbalizer_wordids.append(wordids[0])
             self.task2verbalizer_worids[task] = verbalizer_wordids
 
-
-    def sample_demonstrations(self, query_example, support_examples, num_demonstrations, allow_label_overlap):
-        assert allow_label_overlap in [True, False]
-        if allow_label_overlap:
-            selectable_example_idx = [i for i in range(len(support_examples))
-                                      if not self.check_input_same(support_examples[i], query_example)]
-        else:
-            selectable_example_idx = [i for i in range(len(support_examples))
-                                      if not self.check_input_same(support_examples[i], query_example)
-                                      and not support_examples[i]['<label>'] == query_example['<label>']]
-        assert len(selectable_example_idx) <= len(support_examples)
-        prefix_example_idxs = random.sample(selectable_example_idx, num_demonstrations)
-        return prefix_example_idxs
-
-
-    def check_input_same(self, example1, example2):
-        assert example1.keys() == example2.keys()
+    def _check_input_same(self, example1: Example, example2: Example) -> bool:
+        """Checks that two examples have the same value for each of its keys.
+        Skips this check for the <label> key."""
+        assert (
+            example1.keys() == example2.keys()
+        ), "Cannot compare examples with different keys."
         for key in example1:
-            if key != '<label>' and example1[key] != example2[key]:
+            if key != "<label>" and example1[key] != example2[key]:
                 return False
         return True
 
+    def _sample_demonstrations(
+        self,
+        query_example: Example,
+        support_examples: list[Example],
+        num_demonstrations: int,
+        allow_label_overlap: bool,
+    ) -> list[int]:
+        """Randomly samples num_demonstrations from support_examples and returns them
+        as a list of indices into the support_examples list. The selected examples
+        will never have the same input as the query_example. If allow_label_overlap is
+        True then the selected examples can have the same label as the query_example.
+        Otherwise, the selected examples will have a different label than the query_example."""
+        assert isinstance(allow_label_overlap, bool)
+        # List of example indices to sample from for demonstration examples
+        selectable_example_idx = []
+        if allow_label_overlap:
+            # Only keep examples with a different input than the query example
+            selectable_example_idx = [
+                example_idx
+                for example_idx, example in enumerate(support_examples)
+                if not self._check_input_same(example, query_example)
+            ]
+        else:
+            # Only keep examples with a different input and label than the query example
+            selectable_example_idx = [
+                example_idx
+                for example_idx, example in enumerate(support_examples)
+                if not self._check_input_same(example, query_example)
+                and example["<label>"] != query_example["<label>"]
+            ]
+        assert len(selectable_example_idx) < len(support_examples)
+        # Randomly sample demonstration examples
+        # If num_demonstrations = 5 then this is 5-shot classification
+        prefix_example_idxs = random.sample(selectable_example_idx, num_demonstrations)
+        return prefix_example_idxs
 
-    def prepare_input(self, task, query_example, support_examples, num_demonstrations, template, allow_label_overlap):
-        prefix_example_idxs = self.sample_demonstrations(query_example, support_examples, num_demonstrations, allow_label_overlap)
-        prefix_examples = [support_examples[idx] for idx in prefix_example_idxs]
-        input_text = self.encode_input_str(prefix_examples, query_example, template, self.task2verbalizers[task])
-        return input_text
-
-
-    def encode_example_with_template(self, template, example, verbalizers):
-        templated_example = template[:]
+    def _encode_example_with_template(
+        self, template: Template, example: Example, verbalizers: list[Verbalizer]
+    ) -> tuple[str, str]:
+        """Replace the <input> and <label> keys in the template with their values from
+        the example. Two replacement versions are returned: one with the <label> replacement
+        replaced with the mask token (for MLM) or removed (for CLM), the other with the
+        <label> replaced with its corresponding value from the verbalizer."""
+        templated_example = template
         for key in example:
-            if key != '<label>': # all input keys
+            if key != "<label>":  # all input keys
                 templated_example = templated_example.replace(key, example[key])
-        if self.task_format == 'mlm':
-            nolabel_templated_example = templated_example[:].replace('<label>', self.tokenizer.mask_token)
-            withlabel_templated_example = templated_example[:].replace('<label>', verbalizers[example['<label>']])
-            return nolabel_templated_example, withlabel_templated_example
-        elif self.task_format == 'clm':
-            assert template.endswith('<label>') # template for CLM decoding must produce labels at the end of the prompt.
-            nolabel_templated_example = templated_example[:].replace('<label>', '')
-            withlabel_templated_example = templated_example[:].replace('<label>', verbalizers[example['<label>']])
-            return nolabel_templated_example, withlabel_templated_example
+        if self.task_format == "mlm":
+            templated_example_no_label = templated_example.replace(
+                "<label>", self.tokenizer.mask_token
+            )
+        elif self.task_format == "clm":
+            assert template.endswith(
+                "<label>"
+            ), "Template for CLM decoding must have labels at the end of the prompt."
+            templated_example_no_label = templated_example.replace("<label>", "")
+        templated_example_with_label = templated_example.replace(
+            "<label>", verbalizers[example["<label>"]]
+        )
+        return templated_example_no_label, templated_example_with_label
 
-
-    def encode_input_str(self, prefix_examples, query_example, template, verbalizers):
+    def _encode_input_str(
+        self,
+        prefix_examples: list[Example],
+        query_example: Example,
+        template: Template,
+        verbalizers: list[Verbalizer],
+    ) -> str:
+        """Assemble the string that will be passed to the model. This string will be the
+        concatenation of the task instructions, prefix examples, and the query example.
+        The way this is done is actually slightly different to how it's illustrated in
+        Figure 1."""
+        # Create the model input string by fully replacing the prefix examples
+        # and replacing the <label> in the query example either with the mask
+        # token (for MLM) or removing it (for CLM).
         input_texts = []
         for example in prefix_examples:
-            _, withlabel_templated_example = self.encode_example_with_template(template, example, verbalizers)
-            input_texts.append(withlabel_templated_example)
-        query_example_masked, _ = self.encode_example_with_template(template, query_example, verbalizers)
+            _, templated_example_with_label = self._encode_example_with_template(
+                template, example, verbalizers
+            )
+            input_texts.append(templated_example_with_label)
+        query_example_masked, _ = self._encode_example_with_template(
+            template, query_example, verbalizers
+        )
+        # Convert to string and then to model's token ids
         input_text = self.example_delimiter.join(input_texts + [query_example_masked])
         input_ids = self.tokenizer.encode(input_text)
+        # TODO: Remove this assertion because might just want to truncate instead
         assert len(input_ids) <= self.tokenizer.model_max_length
+        return input_text
+
+    def prepare_input(
+        self,
+        task: Task,
+        query_example: Example,
+        support_examples: list[Example],
+        num_demonstrations: int,
+        template: Template,
+        allow_label_overlap: bool,
+    ) -> ModelInput:
+        """Sample the prefix examples (i.e. the few shot examples) and then assemble
+        them into a string that will be passed to the model."""
+        prefix_example_idxs = self._sample_demonstrations(
+            query_example, support_examples, num_demonstrations, allow_label_overlap
+        )
+        prefix_examples = [support_examples[idx] for idx in prefix_example_idxs]
+        input_text = self._encode_input_str(
+            prefix_examples, query_example, template, self.task2verbalizers[task]
+        )
         return input_text
