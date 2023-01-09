@@ -1,7 +1,16 @@
 import random
 from typing import Literal
+
 from transformers import PreTrainedTokenizer
-from ict import Example, Task, Task2Verbalizers, Template, Verbalizer, ModelInput
+
+from custom_types import (
+    Example,
+    ModelInput,
+    Task,
+    Task2Verbalizers,
+    Template,
+    Verbalizer,
+)
 
 
 class DataLoader:

@@ -5,7 +5,7 @@ from typing import NamedTuple
 import numpy as np
 from ict import ICT
 
-parent_dir = Path(__file__).parent
+parent_dir = Path(__file__).parent.parent
 
 
 class TableKey(NamedTuple):

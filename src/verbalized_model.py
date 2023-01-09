@@ -1,7 +1,8 @@
 from typing import Literal, Union
+
 import torch
 import torch.nn as nn
-from transformers import AutoModelForMaskedLM, AutoModelForCausalLM, PreTrainedTokenizer
+from transformers import AutoModelForCausalLM, AutoModelForMaskedLM, PreTrainedTokenizer
 
 
 class VerbalizedModel(nn.Module):
