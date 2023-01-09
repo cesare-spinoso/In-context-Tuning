@@ -1,7 +1,7 @@
 import pickle as pkl
 import itertools
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, OrderedDict
 import numpy as np
 from ict import ICT
 from tqdm import tqdm
@@ -119,15 +119,15 @@ def main():
                     bsz=batch_size,
                 )
                 # Average across tasks
-                metric2scores = {
+                metric2scores = OrderedDict({
                     metric: [
                         task_score[metric] for task_score in val_task2scores.values()
                     ]
                     for metric in metrics
-                }
-                val_metric2avg_scores = (
+                })
+                val_metric2avg_scores = [
                     np.mean(scores) for scores in metric2scores.values()
-                )
+                ]
                 # Meta-test on test
                 _, test_task2scores = ict.meta_test(
                     test_task2examples,
@@ -140,22 +140,22 @@ def main():
                     bsz=batch_size,
                 )
                 # Average across tasks
-                metric2scores = {
+                metric2scores = OrderedDict({
                     metric: [
                         task_score[metric] for task_score in test_task2scores.values()
                     ]
                     for metric in metrics
-                }
-                test_metric2avg_scores = (
+                })
+                test_metric2avg_scores = [
                     np.mean(scores) for scores in metric2scores.values()
-                )
+                ]
                 # Save results for this HP configuration
                 val_hp_level_results.append(val_metric2avg_scores)
                 test_hp_level_results.append(test_metric2avg_scores)
             # Get the max val score and save the corresponding test score into the table results
-            argmax_val_score = np.argmax(val_hp_level_results)
+            argmax_val_score = np.argmax([val_scores[1] for val_scores in val_hp_level_results])
             table_level_results[TableKey(model_name, num_demonstrations)].append(
-                test_hp_level_results[argmax_val_score]
+                test_hp_level_results[argmax_val_score][1]
             )
         # Average across folds
         table_level_results[TableKey(model_name, num_demonstrations)] = np.mean(
