@@ -105,7 +105,7 @@ def main():
                     bsz=batch_size,
                     output_dir=parent_dir
                     / "output"
-                    / f"model_{model_name}_k_{num_demonstrations}_fold_{fold_idx}_epochs_{epochs}_lr_{lr}.txt",
+                    / f"model_{model_name}_k_{num_demonstrations}_fold_{fold_idx}_epochs_{epochs}_lr_{lr}",
                 )
                 # Meta-test on val
                 _, val_task2scores = ict.meta_test(
@@ -161,9 +161,9 @@ def main():
         table_level_results[TableKey(model_name, num_demonstrations)] = np.mean(
             table_level_results[TableKey(model_name, num_demonstrations)]
         )
-    # Pickle the table results
-    with open(parent_dir / "table_level_results.pkl", "wb") as f:
-        pkl.dump(table_level_results, f)
+        # Pickle the table results as they come in
+        with open(parent_dir / "table_level_results.pkl", "wb") as f:
+            pkl.dump(table_level_results, f)
 
 
 if __name__ == "__main__":
