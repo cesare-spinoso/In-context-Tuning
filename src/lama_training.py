@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import NamedTuple
 import numpy as np
 from ict import ICT
+from tqdm import tqdm
 
 parent_dir = Path(__file__).parent.parent
 
@@ -25,7 +26,7 @@ def main():
     model_names = ["bert-base-cased"]
     number_of_demonstrations = [0]
     task_format = "mlm"
-    table_level_combinations = itertools.product(model_names, number_of_demonstrations)
+    table_level_combinations = list(itertools.product(model_names, number_of_demonstrations))
     # Training hyper-parameters
     # number_of_epochs = [10, 15, 30]
     # learning_rates = [1e-7, 3e-7, 1e-6, 3e-6]
@@ -38,7 +39,7 @@ def main():
     device = "cuda"
     num_prefix_selections = 5
     metrics = ["mrr", "precision1", "precision10"]
-    hp_level_combinations = itertools.product(number_of_epochs, learning_rates)
+    hp_level_combinations = list(itertools.product(number_of_epochs, learning_rates))
 
     # Prepare data
     cv_split = pkl.load(
@@ -59,9 +60,9 @@ def main():
     # Trying to replicate
     table_level_results = {}
 
-    for model_name, num_demonstrations in table_level_combinations:
+    for model_name, num_demonstrations in tqdm(table_level_combinations, desc="Table Level Loop"):
         table_level_results[TableKey(model_name, num_demonstrations)] = []
-        for fold_idx, fold in enumerate(cv_split):
+        for fold_idx, fold in tqdm(enumerate(cv_split), desc="Fold Loop"):
             # Each fold is like a mode with a training, validation and testing set
             # Find optimal HP based on validation set and then get the test set results
             hp_level_results = {}
@@ -83,7 +84,7 @@ def main():
             test_task2examples = {task: data[task] for task in test_tasks}
             test_task2templates = {task: templates[task] for task in test_tasks}
             test_task2verbalizers = {task: verbalizers for task in test_tasks}
-            for epochs, lr in hp_level_combinations:
+            for epochs, lr in tqdm(hp_level_combinations, desc="HP Level Loop"):
                 ict = ICT(model_name=model_name, task_format=task_format, device=device)
                 # Meta-train
                 ict.meta_train(
