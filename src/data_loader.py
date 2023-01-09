@@ -22,6 +22,8 @@ class DataLoader:
         self.device = device
 
         # Get the token ids of each verbalizer for each task
+        # This ensures that the indexing within the verbalized model
+        # output is correct
         self.task2verbalizer_worids: dict[Task, list[int]] = {}
         for task in task2verbalizers:
             verbalizer_wordids = []

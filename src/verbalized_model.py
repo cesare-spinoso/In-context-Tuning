@@ -79,7 +79,7 @@ class VerbalizedModel(nn.Module):
             raise NotImplementedError('self.task_format must be either "clm" or "mlm".')
 
         if labels is None:
-            return output_logits  # (batch size, num output vocabs)
+            return output_logits  # (batch size, len(verbalizer_word_ids)), both mlm and clm
         else:
             loss = [
                 self.loss_fct(

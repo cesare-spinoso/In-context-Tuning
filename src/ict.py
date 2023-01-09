@@ -57,7 +57,7 @@ might be <input> maintains diplomatic relations with <label> as well as other
 variations."""
 
 Verbalizer = str
-"""There is a one-to-one mapping between a verbalizers and class labels.
+"""There is a one-to-one mapping between verbalizers and class labels.
 For LAMA, because each task is a 21K-way classification task, there are
 21K verbalizers."""
 
@@ -154,7 +154,7 @@ class ICT:
 		scaler = torch.cuda.amp.GradScaler()  # fp16 training
 		# Begin training
 		self.model.train()
-		for epoch_idx in trange(num_epochs, desc="Epoch training."):
+		for _ in trange(num_epochs, desc="Epoch training."):
 			# Prepare the training examples
 			epoch_train_examples: list[TrainingBatch] = []
 			for task in task2examples:
