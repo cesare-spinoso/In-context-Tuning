@@ -65,7 +65,7 @@ def main():
     for model_name, num_demonstrations in tqdm(
         table_level_combinations, desc="Table Level Loop"
     ):
-        table_level_results[TableKey(model_name, num_demonstrations)] = []
+        table_level_results[(model_name, num_demonstrations)] = []
         for fold_idx, fold in tqdm(enumerate(cv_split), desc="Fold Loop"):
             # Each fold is like a mode with a training, validation and testing set
             # Find optimal HP based on validation set and then get the test set results
@@ -154,12 +154,12 @@ def main():
                 test_hp_level_results.append(test_metric2avg_scores)
             # Get the max val score and save the corresponding test score into the table results
             argmax_val_score = np.argmax([val_scores[1] for val_scores in val_hp_level_results])
-            table_level_results[TableKey(model_name, num_demonstrations)].append(
+            table_level_results[(model_name, num_demonstrations)].append(
                 test_hp_level_results[argmax_val_score][1]
             )
         # Average across folds
-        table_level_results[TableKey(model_name, num_demonstrations)] = np.mean(
-            table_level_results[TableKey(model_name, num_demonstrations)]
+        table_level_results[(model_name, num_demonstrations)] = np.mean(
+            table_level_results[(model_name, num_demonstrations)]
         )
         # Pickle the table results as they come in
         with open(parent_dir / "table_level_results.pkl", "wb") as f:
