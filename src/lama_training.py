@@ -26,7 +26,9 @@ def main():
     model_names = ["bert-base-cased"]
     number_of_demonstrations = [0]
     task_format = "mlm"
-    table_level_combinations = list(itertools.product(model_names, number_of_demonstrations))
+    table_level_combinations = list(
+        itertools.product(model_names, number_of_demonstrations)
+    )
     # Training hyper-parameters
     # number_of_epochs = [10, 15, 30]
     # learning_rates = [1e-7, 3e-7, 1e-6, 3e-6]
@@ -60,12 +62,15 @@ def main():
     # Trying to replicate
     table_level_results = {}
 
-    for model_name, num_demonstrations in tqdm(table_level_combinations, desc="Table Level Loop"):
+    for model_name, num_demonstrations in tqdm(
+        table_level_combinations, desc="Table Level Loop"
+    ):
         table_level_results[TableKey(model_name, num_demonstrations)] = []
         for fold_idx, fold in tqdm(enumerate(cv_split), desc="Fold Loop"):
             # Each fold is like a mode with a training, validation and testing set
             # Find optimal HP based on validation set and then get the test set results
-            hp_level_results = {}
+            val_hp_level_results = []
+            test_hp_level_results = []
             # Get the tasks for this fold
             train_tasks, val_tasks, test_tasks = (
                 fold["train"],
@@ -145,16 +150,12 @@ def main():
                     np.mean(scores) for scores in metric2scores.values()
                 )
                 # Save results for this HP configuration
-                hp_level_results[HPKey(epochs, lr)] = {
-                    "val": val_metric2avg_scores,
-                    "test": test_metric2avg_scores,
-                }
-            # Get the max value and save that into the table results
-            argmax_val_p1 = max(
-                hp_level_results, key=lambda x: hp_level_results[x]["val"][1]
-            )
+                val_hp_level_results.append(val_metric2avg_scores)
+                test_hp_level_results.append(test_metric2avg_scores)
+            # Get the max val score and save the corresponding test score into the table results
+            argmax_val_score = np.argmax(val_hp_level_results)
             table_level_results[TableKey(model_name, num_demonstrations)].append(
-                hp_level_results[argmax_val_p1]["test"][1]
+                test_hp_level_results[argmax_val_score]
             )
         # Average across folds
         table_level_results[TableKey(model_name, num_demonstrations)] = np.mean(
