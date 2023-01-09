@@ -35,9 +35,9 @@ TrainingBatch = list[TrainingExample]
 class Example(TypedDict):
 	"""Single example for a task, consists of input and corresponding label.
 	e.g. For LAMA, the input is the subject and the label is the object."""
-	"<input>": str
+	_input: str
 	"""The input to the task e.g. For LAMA, the name of a country."""
-	"<label>": str
+	_label: str
 	"""The label of the task for the given input.
 	e.g. For LAMA, the name of a country that maintains diplomatic relations with the input country."""
 
