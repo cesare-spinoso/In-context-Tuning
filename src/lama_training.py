@@ -36,7 +36,7 @@ def main():
     num_warmup_steps = 100
     allow_label_overlap = False
     device = "cuda"
-    num_prefix_selections = 20
+    num_prefix_selections = 5
     metrics = ["mrr", "precision1", "precision10"]
     hp_level_combinations = itertools.product(number_of_epochs, learning_rates)
 

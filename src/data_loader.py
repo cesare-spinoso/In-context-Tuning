@@ -22,7 +22,7 @@ class DataLoader:
         example_delimiter: str,
         device: str,
     ):
-        assert self.task_format in ["mlm", "clm"]
+        assert task_format in ["mlm", "clm"]
 
         self.tokenizer = tokenizer
         self.task_format = task_format
