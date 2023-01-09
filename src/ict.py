@@ -216,7 +216,7 @@ class ICT:
             examples, templates = task2examples[task], task2templates[task]
             input_texts: list[ModelInput] = []
             labels: list[int] = []
-            for template in templates:
+            for template in tqdm(templates, desc="Generating inputs."):
                 for query_example in examples:
                     for _ in range(num_prefix_selections):
                         input_text = data_loader.prepare_input(
@@ -232,7 +232,7 @@ class ICT:
             # Predict on the input, in batches
             self.model.eval()
             output_logits = []
-            for example_idx in np.arange(0, len(input_texts), bsz):
+            for example_idx in tqdm(np.arange(0, len(input_texts), bsz), desc="Predicting."):
                 input_dict = self.tokenizer(
                     input_texts[example_idx : example_idx + bsz],
                     padding=True,
@@ -253,7 +253,7 @@ class ICT:
             # Compute score based on logits
             # Compute mean reciprocal rank (MRR), precision@1, and precision@10
             precision1, precision, mrr = [], [], []
-            for logits, gt_label in zip(output_logits, labels):
+            for logits, gt_label in tqdm(zip(output_logits, labels), "Evaluating."):
                 # Find the rank of the ground-truth label
                 # w.r.t. all other labels based on logits
                 # Best rank is 1, worst rank is num_labels
