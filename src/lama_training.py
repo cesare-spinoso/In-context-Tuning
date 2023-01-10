@@ -149,12 +149,15 @@ def main():
             # Average across tasks
             test_metric = np.mean([task_score["precision1"] for task_score in test_task2scores.values()])
             table_level_results[(model_name, num_demonstrations)].append(test_metric)
+        # Pickle per-fold results
+        with open(parent_dir / "fold_level_results.pkl", "wb") as f:
+            pkl.dump(table_level_results, f)
         # Average across folds
         table_level_results[(model_name, num_demonstrations)] = np.mean(
             table_level_results[(model_name, num_demonstrations)]
         )
         # Pickle the table results as they come in
-        with open(parent_dir / "table_level_results.pkl", "wb") as f:
+        with open(parent_dir / "table_level_results_lama.pkl", "wb") as f:
             pkl.dump(table_level_results, f)
 
 
