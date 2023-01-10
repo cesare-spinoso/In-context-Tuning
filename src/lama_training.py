@@ -8,6 +8,7 @@ from tqdm import tqdm
 from copy import deepcopy
 
 parent_dir = Path(__file__).parent.parent
+lama_log_file = open(parent_dir / "lama_log.txt", "w")
 
 
 class TableKey(NamedTuple):
@@ -22,17 +23,15 @@ class HPKey(NamedTuple):
 
 def main():
     # Table setup
-    # model_names = ["bert-base-cased", "bert-large-cased", "deberta-v2-xlarge"]
-    # number_of_demonstrations = [0, 1, 2, 5]
-    model_names = ["bert-base-cased"]
-    number_of_demonstrations = [0]
+    model_names = ["bert-base-cased", "bert-large-cased", "deberta-v2-xlarge"]
+    number_of_demonstrations = [0, 1, 2, 5]
     task_format = "mlm"
     table_level_combinations = list(
         itertools.product(model_names, number_of_demonstrations)
     )
     # Training hyper-parameters
-    # number_of_epochs = [10, 15, 30]
-    # learning_rates = [1e-7, 3e-7, 1e-6, 3e-6]
+    number_of_epochs = [10, 15, 30]
+    learning_rates = [1e-7, 3e-7, 1e-6, 3e-6]
     number_of_epochs = [1]
     learning_rates = [1e-7]
     example_delimiter = " "
@@ -64,10 +63,14 @@ def main():
     table_level_results = {}
 
     for model_name, num_demonstrations in tqdm(
-        table_level_combinations, desc="Table Level Loop"
+        table_level_combinations,
+        desc=f"Table Level Loop {model_name=}, {num_demonstrations=}",
+        file=lama_log_file,
     ):
         table_level_results[(model_name, num_demonstrations)] = []
-        for fold_idx, fold in tqdm(enumerate(cv_split), desc="Fold Loop"):
+        for fold_idx, fold in tqdm(
+            enumerate(cv_split), desc=f"Fold Loop {fold_idx=}", file=lama_log_file
+        ):
             # Each fold is like a mode with a training, validation and testing set
             # Find optimal HP based on validation set and then get the test set results
             # Get the tasks for this fold
@@ -91,7 +94,11 @@ def main():
             # Best val score tracker
             best_val_score = 0
             ict_max = None
-            for epochs, lr in tqdm(hp_level_combinations, desc="HP Level Loop"):
+            for epochs, lr in tqdm(
+                hp_level_combinations,
+                desc=f"HP Level Loop {epochs=}, {lr=}",
+                file=lama_log_file,
+            ):
                 ict = ICT(model_name=model_name, task_format=task_format, device=device)
                 # Meta-train
                 ict.meta_train(
@@ -121,12 +128,15 @@ def main():
                     bsz=batch_size,
                 )
                 # Average across tasks
-                metric2scores = OrderedDict({
-                    metric: [
-                        task_score[metric] for task_score in val_task2scores.values()
-                    ]
-                    for metric in metrics
-                })
+                metric2scores = OrderedDict(
+                    {
+                        metric: [
+                            task_score[metric]
+                            for task_score in val_task2scores.values()
+                        ]
+                        for metric in metrics
+                    }
+                )
                 val_metric2avg_scores = [
                     np.mean(scores) for scores in metric2scores.values()
                 ]
@@ -147,7 +157,9 @@ def main():
                 bsz=batch_size,
             )
             # Average across tasks
-            test_metric = np.mean([task_score["precision1"] for task_score in test_task2scores.values()])
+            test_metric = np.mean(
+                [task_score["precision1"] for task_score in test_task2scores.values()]
+            )
             table_level_results[(model_name, num_demonstrations)].append(test_metric)
         # Pickle per-fold results
         with open(parent_dir / "fold_level_results.pkl", "wb") as f:
