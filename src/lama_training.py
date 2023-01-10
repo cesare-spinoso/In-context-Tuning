@@ -5,6 +5,7 @@ from typing import NamedTuple, OrderedDict
 import numpy as np
 from ict import ICT
 from tqdm import tqdm
+from copy import deepcopy
 
 parent_dir = Path(__file__).parent.parent
 
@@ -69,8 +70,6 @@ def main():
         for fold_idx, fold in tqdm(enumerate(cv_split), desc="Fold Loop"):
             # Each fold is like a mode with a training, validation and testing set
             # Find optimal HP based on validation set and then get the test set results
-            val_hp_level_results = []
-            test_hp_level_results = []
             # Get the tasks for this fold
             train_tasks, val_tasks, test_tasks = (
                 fold["train"],
@@ -89,6 +88,9 @@ def main():
             test_task2examples = {task: data[task] for task in test_tasks}
             test_task2templates = {task: templates[task] for task in test_tasks}
             test_task2verbalizers = {task: verbalizers for task in test_tasks}
+            # Best val score tracker
+            best_val_score = 0
+            ict_max = None
             for epochs, lr in tqdm(hp_level_combinations, desc="HP Level Loop"):
                 ict = ICT(model_name=model_name, task_format=task_format, device=device)
                 # Meta-train
@@ -128,35 +130,25 @@ def main():
                 val_metric2avg_scores = [
                     np.mean(scores) for scores in metric2scores.values()
                 ]
-                # Meta-test on test
-                _, test_task2scores = ict.meta_test(
-                    test_task2examples,
-                    test_task2templates,
-                    task2verbalizers=test_task2verbalizers,
-                    num_demonstrations=num_demonstrations,
-                    example_delimiter=example_delimiter,
-                    allow_label_overlap=False,
-                    num_prefix_selections=num_prefix_selections,
-                    bsz=batch_size,
-                )
-                # Average across tasks
-                metric2scores = OrderedDict({
-                    metric: [
-                        task_score[metric] for task_score in test_task2scores.values()
-                    ]
-                    for metric in metrics
-                })
-                test_metric2avg_scores = [
-                    np.mean(scores) for scores in metric2scores.values()
-                ]
-                # Save results for this HP configuration
-                val_hp_level_results.append(val_metric2avg_scores)
-                test_hp_level_results.append(test_metric2avg_scores)
-            # Get the max val score and save the corresponding test score into the table results
-            argmax_val_score = np.argmax([val_scores[1] for val_scores in val_hp_level_results])
-            table_level_results[(model_name, num_demonstrations)].append(
-                test_hp_level_results[argmax_val_score][1]
+                # Track best val score, only meta-test best ict
+                # Use precision1 as the metric to track
+                if val_metric2avg_scores[1] > best_val_score:
+                    best_val_score = val_metric2avg_scores[1]
+                    ict_max = deepcopy(ict)
+            # Meta-test with ict_max on test
+            _, test_task2scores = ict_max.meta_test(
+                test_task2examples,
+                test_task2templates,
+                task2verbalizers=test_task2verbalizers,
+                num_demonstrations=num_demonstrations,
+                example_delimiter=example_delimiter,
+                allow_label_overlap=False,
+                num_prefix_selections=num_prefix_selections,
+                bsz=batch_size,
             )
+            # Average across tasks
+            test_metric = np.mean([task_score["precision1"] for task_score in test_task2scores.values()])
+            table_level_results[(model_name, num_demonstrations)].append(test_metric)
         # Average across folds
         table_level_results[(model_name, num_demonstrations)] = np.mean(
             table_level_results[(model_name, num_demonstrations)]
