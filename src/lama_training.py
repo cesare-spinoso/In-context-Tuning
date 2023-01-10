@@ -64,12 +64,12 @@ def main():
 
     for model_name, num_demonstrations in tqdm(
         table_level_combinations,
-        desc=f"Table Level Loop {model_name=}, {num_demonstrations=}",
+        desc=f"Table Level Loop",
         file=lama_log_file,
     ):
         table_level_results[(model_name, num_demonstrations)] = []
         for fold_idx, fold in tqdm(
-            enumerate(cv_split), desc=f"Fold Loop {fold_idx=}", file=lama_log_file
+            enumerate(cv_split), desc=f"Fold Loop", file=lama_log_file
         ):
             # Each fold is like a mode with a training, validation and testing set
             # Find optimal HP based on validation set and then get the test set results
@@ -96,7 +96,7 @@ def main():
             ict_max = None
             for epochs, lr in tqdm(
                 hp_level_combinations,
-                desc=f"HP Level Loop {epochs=}, {lr=}",
+                desc=f"HP Level Loop",
                 file=lama_log_file,
             ):
                 ict = ICT(model_name=model_name, task_format=task_format, device=device)
