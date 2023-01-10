@@ -8,9 +8,9 @@ if __name__ == "__main__":
     model_name = "bert-base-cased"
 
     # prepare data
-    cv_split = pkl.load(open("../example_data/cross_validation_splits.pkl", "rb"))
-    rel2data = pkl.load(open("../example_data/data.pkl", "rb"))
-    rel2templates = pkl.load(open("../example_data/templates.pkl", "rb"))
+    cv_split = pkl.load(open("../data_lama/cross_validation_splits.pkl", "rb"))
+    rel2data = pkl.load(open("../data_lama/data.pkl", "rb"))
+    rel2templates = pkl.load(open("../data_lama/templates.pkl", "rb"))
     train_tasks, val_tasks = cv_split[fold_idx]["train"], cv_split[fold_idx]["val"]
     train_task2examples = {task: rel2data[task] for task in train_tasks}
     train_task2templates = {task: rel2templates[task] for task in train_tasks}
@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     # load verbalizers
     verbalizers = []
-    with open("../example_data/class_verbalizers.txt", "r") as f:
+    with open("../data_lama/class_verbalizers.txt", "r") as f:
         for line in f.readlines():
             word = line.strip()
             assert len(word) != 0  # nonempty

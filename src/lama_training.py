@@ -45,14 +45,14 @@ def main():
 
     # Prepare data
     cv_split = pkl.load(
-        open(parent_dir / "example_data" / "cross_validation_splits.pkl", "rb")
+        open(parent_dir / "data_lama" / "cross_validation_splits.pkl", "rb")
     )
-    data = pkl.load(open(parent_dir / "example_data" / "data.pkl", "rb"))
-    templates = pkl.load(open(parent_dir / "example_data" / "templates.pkl", "rb"))
+    data = pkl.load(open(parent_dir / "data_lama" / "data.pkl", "rb"))
+    templates = pkl.load(open(parent_dir / "data_lama" / "templates.pkl", "rb"))
 
     # Load verbalizers
     verbalizers = []
-    with open(parent_dir / "example_data" / "class_verbalizers.txt", "r") as f:
+    with open(parent_dir / "data_lama" / "class_verbalizers.txt", "r") as f:
         for line in f.readlines():
             word = line.strip()
             if len(word) != 0:
