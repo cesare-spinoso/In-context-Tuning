@@ -6,6 +6,7 @@ from transformers import PreTrainedTokenizer
 
 from custom_types import (
     Example,
+    TemplateExample,
     ModelInput,
     Task,
     Task2Verbalizers,
@@ -50,8 +51,8 @@ class DataLoader:
     def _check_input_same(
         self,
         example1: Union[Example, TemplateExample],
-        example2: Union[Example, TemplateExample]
-        ) -> bool:
+        example2: Union[Example, TemplateExample],
+    ) -> bool:
         """Checks that two examples have the same value for each of its keys.
         Skips this check for the <label> key."""
         assert (
@@ -152,7 +153,10 @@ class DataLoader:
                 )
             input_texts.append(templated_example_with_label)
         if template is None:
-            query_example = {"<input>": query_example["<input>"], "<label>": query_example["<label>"]}
+            query_example = {
+                "<input>": query_example["<input>"],
+                "<label>": query_example["<label>"],
+            }
             extracted_templated = query_example["template"]
             query_example_masked, _ = self._encode_example_with_template(
                 extracted_template, query_example, verbalizers
@@ -161,16 +165,20 @@ class DataLoader:
         input_text = self.example_delimiter.join(input_texts + [query_example_masked])
         input_ids = self.tokenizer.encode(input_text)
         # Warn the user
-        if (len_input_ids := len(input_ids)) > (model_max_length := self.tokenizer.model_max_length):
-            warnings.warn(f"MODEL LENGTH EXCEEDED. Length of input text {input_text} is {len_input_ids}. " +
-            f"This exceeds the model's max length of {model_max_length}.")
+        if (len_input_ids := len(input_ids)) > (
+            model_max_length := self.tokenizer.model_max_length
+        ):
+            warnings.warn(
+                f"MODEL LENGTH EXCEEDED. Length of input text {input_text} is {len_input_ids}. "
+                + f"This exceeds the model's max length of {model_max_length}."
+            )
         return input_text
 
     def prepare_input(
         self,
         task: Task,
-        query_example: Union[Example, TemplateExamples],
-        support_examples: Union[list[Example], list[TemplateExamples]],
+        query_example: Union[Example, TemplateExample],
+        support_examples: Union[list[Example], list[TemplateExample]],
         num_demonstrations: int,
         allow_label_overlap: bool,
         template: Template = None,

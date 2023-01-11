@@ -2,3 +2,4 @@ tqdm
 transformers
 torch
 numpy
+scikit-learn

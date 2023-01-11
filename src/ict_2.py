@@ -102,7 +102,9 @@ class ICT:
         # Compute the total number of training steps (i.e. number of times call .step)
         # to calibrate the learning rate scheduler (which uses a linear schedule with warmup)
         # https://huggingface.co/docs/transformers/main_classes/optimizer_schedules#transformers.get_linear_schedule_with_warmup
-        task_num_examples = [len(task2template_examples[task]) for task in task2template_examples]
+        task_num_examples = [
+            len(task2template_examples[task]) for task in task2template_examples
+        ]
         num_steps = sum(task_num_examples) * num_epochs // bsz
         lr_scheduler = get_linear_schedule_with_warmup(
             optimizer, num_warmup_steps, num_steps
@@ -110,7 +112,7 @@ class ICT:
         # Tries to automatically set the type of floating point precision
         scaler = torch.cuda.amp.GradScaler()  # fp16 training
         # Prepare the training examples
-        epoch_train_examples: list[TrainingBatch] = [] # List of training batches
+        epoch_train_examples: list[TrainingBatch] = []  # List of training batches
         for task in tqdm(task2template_examples, desc="Preparing training examples."):
             # Loop by task so batches only contain examples of the same task
             training_examples: list[TrainingExample] = []
@@ -123,7 +125,7 @@ class ICT:
                     examples,
                     num_demonstrations,
                     allow_label_overlap,
-                    template = None
+                    template=None,
                 )
                 # NOTE: Current implementation filters out completely the
                 # examples that exceed model's maximum token length, will
@@ -141,7 +143,9 @@ class ICT:
             random.shuffle(training_examples)
             for idx in range(0, len(training_examples), bsz):
                 epoch_train_examples.append(training_examples[idx : idx + bsz])
-        import pdb; pdb.set_trace() # TODO: => Check if the inputs have the correct templates and answers
+        import pdb
+
+        pdb.set_trace()  # TODO: => Check if the inputs have the correct templates and answers
         # Begin training
         self.model.train()
         for _ in trange(num_epochs, desc="Epoch training."):
@@ -212,7 +216,7 @@ class ICT:
         )
         # Record the predictions (logits for each task) and the scores
         task2preds, task2scores = {}, {}
-        for task in tqdm(task2examples, desc="Meta-testing for each task."):
+        for task in tqdm(task2template_examples, desc="Meta-testing for each task."):
             # Prepare the input texts and labels for the task
             examples = task2template_examples[task]
             input_texts: list[ModelInput] = []
@@ -225,15 +229,20 @@ class ICT:
                         examples,
                         num_demonstrations,
                         allow_label_overlap,
-                        template = None,
+                        template=None,
                     )
                     input_texts.append(input_text)
                     labels.append(query_example["<label>"])
-            import pdb; pdb.set_trace(); # TODO: Check the contents of input_texts
+            import pdb
+
+            pdb.set_trace()
+            # TODO: Check the contents of input_texts
             # Predict on the input, in batches
             self.model.eval()
             output_logits = []
-            for example_idx in tqdm(np.arange(0, len(input_texts), bsz), desc="Predicting."):
+            for example_idx in tqdm(
+                np.arange(0, len(input_texts), bsz), desc="Predicting."
+            ):
                 input_dict = self.tokenizer(
                     input_texts[example_idx : example_idx + bsz],
                     padding=True,
@@ -253,7 +262,7 @@ class ICT:
             task2preds[task] = output_logits
             # Compute score based on logits
             # Compute mean reciprocal rank (MRR), precision@1, and precision@10
-            predicted_logits = [] # Use this to calculate the AUC
+            predicted_logits = []  # Use this to calculate the AUC
             precision1, precision, mrr = [], [], []
             for logits, gt_label in tqdm(zip(output_logits, labels), "Evaluating."):
                 # Find the rank of the ground-truth label
@@ -266,9 +275,11 @@ class ICT:
                 precision1.append(1 if rank <= 1 else 0)
                 precision.append(1 if rank <= 10 else 0)
             task2scores[task] = {
-                "precision1": np.mean(precision1), # This becomes the average accuracy for binary classification
+                "precision1": np.mean(
+                    precision1
+                ),  # This becomes the average accuracy for binary classification
                 "precision10": np.mean(precision),
                 "mrr": np.mean(mrr),
-                "auc": roc_auc_score(y_true=labels, y_score=predicted_logits)
+                "auc": roc_auc_score(y_true=labels, y_score=predicted_logits),
             }
         return task2preds, task2scores
