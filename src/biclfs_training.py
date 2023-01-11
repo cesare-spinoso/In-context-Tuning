@@ -32,11 +32,11 @@ def main():
     number_of_epochs = [10, 15, 30] # This might be too much
     learning_rates = [1e-7, 3e-7, 1e-6, 3e-6]
     example_delimiter = " "
-    batch_size = 48
+    batch_size = 32 # Smaller batch size than lama
     num_warmup_steps = 100
     allow_label_overlap = False
     device = "cuda"
-    num_prefix_selections = 10
+    num_prefix_selections = 10 # Large number of selections than lama
     metrics = ["mrr", "precision1", "precision10"]
     hp_level_combinations = list(itertools.product(number_of_epochs, learning_rates))
 
@@ -90,6 +90,7 @@ def main():
             test_task2examples = {task: testing_data[task] for task in test_tasks}
             test_task2templates = {task: testing_templates[task] for task in test_tasks}
             test_task2verbalizers = {task: verbalizers for task in test_tasks}
+            import pdb; pdb.set_trace();
             # Best val score tracker
             best_val_score = 0
             ict_max = None
