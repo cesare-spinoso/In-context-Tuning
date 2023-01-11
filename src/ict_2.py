@@ -143,13 +143,9 @@ class ICT:
             random.shuffle(training_examples)
             for idx in range(0, len(training_examples), bsz):
                 epoch_train_examples.append(training_examples[idx : idx + bsz])
-        import pdb
-
-        pdb.set_trace()  # TODO: => Check if the inputs have the correct templates and answers
         # Begin training
         self.model.train()
         for _ in trange(num_epochs, desc="Epoch training."):
-            break
             # Shuffle the batches (so that e.g. don't see all the same task in a row)
             random.shuffle(epoch_train_examples)
             train_loss = []

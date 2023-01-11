@@ -55,7 +55,7 @@ def main():
 
     # Load verbalizers
     verbalizers = []
-    with open(parent_dir / "data_lama" / "class_verbalizers.txt", "r") as f:
+    with open(parent_dir / "data_biclfs" / "class_verbalizers.txt", "r") as f:
         for line in f.readlines():
             word = line.strip()
             if len(word) != 0:

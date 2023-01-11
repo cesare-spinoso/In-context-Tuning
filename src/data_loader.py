@@ -146,20 +146,20 @@ class DataLoader:
                 )
             else:
                 # Then this is a TemplateExample
-                example = {"<input>": example["<input>"], "<label>": example["<label>"]}
+                extracted_example = {"<input>": example["<input>"], "<label>": example["<label>"]}
                 extracted_template = example["template"]
                 _, templated_example_with_label = self._encode_example_with_template(
-                    extracted_template, example, verbalizers
+                    extracted_template, extracted_example, verbalizers
                 )
             input_texts.append(templated_example_with_label)
         if template is None:
-            query_example = {
+            extracted_query_example = {
                 "<input>": query_example["<input>"],
                 "<label>": query_example["<label>"],
             }
-            extracted_templated = query_example["template"]
+            extracted_template = query_example["template"]
             query_example_masked, _ = self._encode_example_with_template(
-                extracted_template, query_example, verbalizers
+                extracted_template, extracted_query_example, verbalizers
             )
         # Convert to string and then to model's token ids
         input_text = self.example_delimiter.join(input_texts + [query_example_masked])
