@@ -23,7 +23,7 @@ class HPKey(NamedTuple):
 
 def main():
     # Table setup
-    model_names = ["bert-large-cased", "deberta-v2-xlarge"]
+    model_names = ["bert-base-cased", "bert-large-cased", "microsoft/deberta-v2-xlarge"]
     number_of_demonstrations = [0, 1, 2, 5]
     task_format = "mlm"
     table_level_combinations = list(
