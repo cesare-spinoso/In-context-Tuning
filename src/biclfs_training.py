@@ -113,8 +113,7 @@ def main():
                 )
                 # Meta-train
                 ict.meta_train(
-                    task2examples=train_task2examples,
-                    task2templates=train_task2templates,
+                    task2template_examples=train_task2examples,
                     task2verbalizers=train_task2verbalizers,
                     num_demonstrations=num_demonstrations,
                     example_delimiter=example_delimiter,

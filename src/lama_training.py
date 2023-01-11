@@ -38,7 +38,7 @@ def main():
     batch_size = 48
     num_warmup_steps = 100
     allow_label_overlap = False
-    device = "cuda"
+    device = "gpu"
     num_prefix_selections = 5
     metrics = ["mrr", "precision1", "precision10"]
     hp_level_combinations = list(itertools.product(number_of_epochs, learning_rates))
