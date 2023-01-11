@@ -9,10 +9,11 @@ import torch
 from tqdm import tqdm, trange
 from transformers import AutoTokenizer
 from transformers.optimization import get_linear_schedule_with_warmup
+from sklearn.metrics import roc_auc_score
 
 from custom_types import (
     ModelInput,
-    Task2Examples,
+    Task2TemplateExamples,
     Task2Preds,
     Task2Scores,
     Task2Templates,
@@ -27,6 +28,7 @@ from verbalized_model import VerbalizedModel
 class ICT:
     """
     Class implementing the In-Context Tuning Fine-Tuning paradigm developed by Chen et al. (2021).
+    Fixes made to code on github.
     """
 
     def __init__(
@@ -34,6 +36,7 @@ class ICT:
         model_name: str,
         task_format: Literal["clm", "mlm"],
         device: str,
+        identifier: str,
         load_model_path: Union[str, Path] = None,
     ) -> None:
         """
@@ -42,6 +45,7 @@ class ICT:
                 task_format: Whether the task format is a masked language modeling task or a causal language modeling task.
                 This depends on what the model you are fine-tuning is.
                 device (str): Which device to use for training. Recommended to use "cuda" if available.
+                identifier (str): Model name identifier. Should be unique.
                 load_model_path (Union[str, Path], optional): Path to previously trained model. Defaults to None.
         """
         assert task_format in ["clm", "mlm"]
@@ -57,15 +61,14 @@ class ICT:
             model_name=model_name, task_format=task_format, tokenizer=self.tokenizer
         )
         self.device = device
-
+        self.identifier = identifier
         if load_model_path is not None:
             self.model.load_state_dict(torch.load(load_model_path, map_location="cpu"))
         self.model.to(device)
 
     def meta_train(
         self,
-        task2examples: Task2Examples,
-        task2templates: Task2Templates,
+        task2template_examples: Task2TemplateExamples,
         task2verbalizers: Task2Verbalizers,
         num_demonstrations: int,
         example_delimiter: str,
@@ -78,7 +81,6 @@ class ICT:
     ) -> None:
         """Run the meta-training described in the paper."""
         # Verify that passed arguments are valid
-        assert task2examples.keys() == task2templates.keys()
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
         # Create dataloader
@@ -100,49 +102,50 @@ class ICT:
         # Compute the total number of training steps (i.e. number of times call .step)
         # to calibrate the learning rate scheduler (which uses a linear schedule with warmup)
         # https://huggingface.co/docs/transformers/main_classes/optimizer_schedules#transformers.get_linear_schedule_with_warmup
-        task_num_examples = [len(task2examples[task]) for task in task2examples]
+        task_num_examples = [len(task2template_examples[task]) for task in task2template_examples]
         num_steps = sum(task_num_examples) * num_epochs // bsz
         lr_scheduler = get_linear_schedule_with_warmup(
             optimizer, num_warmup_steps, num_steps
         )
         # Tries to automatically set the type of floating point precision
         scaler = torch.cuda.amp.GradScaler()  # fp16 training
+        # Prepare the training examples
+        epoch_train_examples: list[TrainingBatch] = [] # List of training batches
+        for task in tqdm(task2template_examples, desc="Preparing training examples."):
+            # Loop by task so batches only contain examples of the same task
+            training_examples: list[TrainingExample] = []
+            examples = task2template_examples[task]
+            for query_example in examples:
+                # Remove the random selection of templates
+                input_text = data_loader.prepare_input(
+                    task,
+                    query_example,
+                    examples,
+                    num_demonstrations,
+                    allow_label_overlap,
+                    template = None
+                )
+                # NOTE: Current implementation filters out completely the
+                # examples that exceed model's maximum token length, will
+                # probably need to change this so that we truncate rather than
+                # filter out the example entirely
+                if (
+                    len(self.tokenizer(input_text)["input_ids"])
+                    <= self.tokenizer.model_max_length
+                ):
+                    training_examples.append(
+                        TrainingExample(task, input_text, query_example["<label>"])
+                    )
+            # Divide model_examples into batches, so that each batch has all examples from the same task
+            # Shuffle within batch examples
+            random.shuffle(training_examples)
+            for idx in range(0, len(training_examples), bsz):
+                epoch_train_examples.append(training_examples[idx : idx + bsz])
+        import pdb; pdb.set_trace() # TODO: => Check if the inputs have the correct templates and answers
         # Begin training
         self.model.train()
         for _ in trange(num_epochs, desc="Epoch training."):
-            # Prepare the training examples
-            epoch_train_examples: list[TrainingBatch] = []
-            for task in task2examples:
-                training_examples: list[TrainingExample] = []
-                examples = task2examples[task]
-                for query_example in examples:
-                    # TODO: Why is the template chosen randomly?
-                    # Associate each example with a randomly sampled template
-                    template = random.sample(task2templates[task], 1)[0]
-                    input_text = data_loader.prepare_input(
-                        task,
-                        query_example,
-                        examples,
-                        num_demonstrations,
-                        allow_label_overlap,
-                        template=template,
-                    )
-                    # TODO: Current implementation filters out completely the
-                    # examples that exceed model's maximum token length, will
-                    # probably need to change this so that we truncate rather than
-                    # filter out the example entirely
-                    if (
-                        len(self.tokenizer(input_text)["input_ids"])
-                        <= self.tokenizer.model_max_length
-                    ):
-                        training_examples.append(
-                            TrainingExample(task, input_text, query_example["<label>"])
-                        )
-                # Divide model_examples into batches, so that each batch has all examples from the same task
-                # Shuffle within batch examples
-                random.shuffle(training_examples)
-                for idx in range(0, len(training_examples), bsz):
-                    epoch_train_examples.append(training_examples[idx : idx + bsz])
+            break
             # Shuffle the batches (so that e.g. don't see all the same task in a row)
             random.shuffle(epoch_train_examples)
             train_loss = []
@@ -152,6 +155,7 @@ class ICT:
             ):
                 optimizer.zero_grad()
                 batch_train_examples = epoch_train_examples[batch_example_idx]
+                # NOTE: Interesting technical problem is the truncation length
                 input_dict = self.tokenizer(
                     [example.model_input for example in batch_train_examples],
                     padding=True,
@@ -186,8 +190,7 @@ class ICT:
 
     def meta_test(
         self,
-        task2examples: Task2Examples,
-        task2templates: Task2Templates,
+        task2template_examples: Task2TemplateExamples,
         task2verbalizers: Task2Verbalizers,
         num_demonstrations: int,
         example_delimiter: str,
@@ -199,8 +202,6 @@ class ICT:
         is the number of few-shot choices to evaluate. It is much smaller than the total
         number of few-shot choices due to the computational cost of evaluating each choice.
         See the "Sampling" subsection in 3.2 of the paper."""
-        # Validate the inputs
-        assert task2examples.keys() == task2templates.keys()
         # Create dataloader
         data_loader = DataLoader(
             tokenizer=self.tokenizer,
@@ -213,22 +214,22 @@ class ICT:
         task2preds, task2scores = {}, {}
         for task in tqdm(task2examples, desc="Meta-testing for each task."):
             # Prepare the input texts and labels for the task
-            examples, templates = task2examples[task], task2templates[task]
+            examples = task2template_examples[task]
             input_texts: list[ModelInput] = []
             labels: list[int] = []
-            for template in tqdm(templates, desc="Generating inputs."):
-                for query_example in examples:
-                    for _ in range(num_prefix_selections):
-                        input_text = data_loader.prepare_input(
-                            task,
-                            query_example,
-                            examples,
-                            num_demonstrations,
-                            allow_label_overlap,
-                            template=template,
-                        )
-                        input_texts.append(input_text)
-                        labels.append(query_example["<label>"])
+            for query_example in examples:
+                for _ in range(num_prefix_selections):
+                    input_text = data_loader.prepare_input(
+                        task,
+                        query_example,
+                        examples,
+                        num_demonstrations,
+                        allow_label_overlap,
+                        template = None,
+                    )
+                    input_texts.append(input_text)
+                    labels.append(query_example["<label>"])
+            import pdb; pdb.set_trace(); # TODO: Check the contents of input_texts
             # Predict on the input, in batches
             self.model.eval()
             output_logits = []
@@ -252,168 +253,22 @@ class ICT:
             task2preds[task] = output_logits
             # Compute score based on logits
             # Compute mean reciprocal rank (MRR), precision@1, and precision@10
+            predicted_logits = [] # Use this to calculate the AUC
             precision1, precision, mrr = [], [], []
             for logits, gt_label in tqdm(zip(output_logits, labels), "Evaluating."):
                 # Find the rank of the ground-truth label
                 # w.r.t. all other labels based on logits
                 # Best rank is 1, worst rank is num_labels
+                predicted_logits.append(logits[gt_label])
                 rank = np.count_nonzero(logits > logits[gt_label]) + 1
                 assert rank >= 1
                 mrr.append(1 / rank)
                 precision1.append(1 if rank <= 1 else 0)
                 precision.append(1 if rank <= 10 else 0)
             task2scores[task] = {
-                "precision1": np.mean(precision1),
+                "precision1": np.mean(precision1), # This becomes the average accuracy for binary classification
                 "precision10": np.mean(precision),
                 "mrr": np.mean(mrr),
+                "auc": roc_auc_score(y_true=labels, y_score=predicted_logits)
             }
         return task2preds, task2scores
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Meta-training / meta-testing of in-context tuning."
-    )
-    parser.add_argument(
-        "--mode",
-        type=str,
-        choices=["meta-train", "meta-test"],
-        help="whether you want to meta-train a model or meta-test a meta-trained model.",
-    )
-
-    parser.add_argument("--model_name", type=str, help="name of the model.")
-    parser.add_argument(
-        "--task_format",
-        type=str,
-        choices=["mlm", "clm"],
-        help="frame verbalizer classifcation as masked language modeling or causal language modeling.",
-    )
-    parser.add_argument("--device", type=str, help="device used for this experiment..")
-    parser.add_argument(
-        "--task2examples",
-        type=str,
-        help="path to the meta-training/meta-testing data file (a dictionary of task2examples).",
-    )
-    parser.add_argument(
-        "--task2templates",
-        type=str,
-        help="path to the meta-training/meta-testing templates file (a dictionary of task2templates).",
-    )
-    parser.add_argument(
-        "--task2verbalizers",
-        type=str,
-        help="path to the meta-training/meta-testing verbalizers file (a dictionary of task2verbalizers).",
-    )
-    parser.add_argument(
-        "--num_demonstrations", type=int, help="number of few-shot demonstrations."
-    )
-    parser.add_argument(
-        "--example_delimiter",
-        type=int,
-        help="delimiter used to separate consecutive examples in the input text.",
-    )
-    parser.add_argument(
-        "--allow_label_overlap",
-        action="store_true",
-        help="whether few-shot support examples are allowed to have overlapping labels with the query example.",
-    )
-    parser.add_argument(
-        "--bsz", type=int, help="batch size for meta-training/meta-testing."
-    )
-
-    # arguments only used for meta-training
-    parser.add_argument("--lr", type=float, help="learning rate for meta-training.")
-    parser.add_argument(
-        "--num_warmup_steps",
-        type=int,
-        help="number of warmup steps of the learning rate scheduler.",
-    )
-    parser.add_argument(
-        "--num_epochs", type=int, help="number of meta-training epochs."
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        help="output directory to store the meta-trained model and the meta-training log file.",
-    )
-
-    # arguments only used for meta-testing
-    parser.add_argument(
-        "--num_prefix_selections",
-        type=int,
-        help="number of demonstration sampling for each query example (result averaged across different sampled demonstrations).",
-    )
-    parser.add_argument(
-        "--load_model_path",
-        type=str,
-        help="path to the meta-trained model to evaluate with.",
-    )
-
-    args = parser.parse_args()
-    assert args.mode in ["meta-train", "meta-test"]
-    if args.mode == "meta-train":
-        assert None not in [
-            args.model_name,
-            args.task_format,
-            args.device,
-            args.task2examples,
-            args.task2templates,
-            args.task2verbalizers,
-            args.num_demonstrations,
-            args.example_delimiter,
-            args.allow_label_overlap,
-            args.lr,
-            args.num_warmup_steps,
-            args.num_epochs,
-            args.bsz,
-            args.output_dir,
-        ]
-        ict = ICT(args.model_name, args.task_format, args.device)
-        task2examples = pkl.load(open(args.task2examples, "rb"))
-        task2templates = pkl.load(open(args.task2templates, "rb"))
-        task2verbalizers = pkl.load(open(args.task2verbalizers, "rb"))
-        ict.meta_train(
-            task2examples,
-            task2templates,
-            task2verbalizers,
-            args.num_demonstrations,
-            args.example_delimiter,
-            args.allow_label_overlap,
-            args.lr,
-            args.num_warmup_steps,
-            args.num_epochs,
-            args.bsz,
-            args.output_dir,
-        )
-
-    elif args.mode == "meta-test":
-        assert None not in [
-            args.model_name,
-            args.task_format,
-            args.device,
-            args.load_model_path,
-            args.task2examples,
-            args.task2templates,
-            args.task2verbalizers,
-            args.num_demonstrations,
-            args.example_delimiter,
-            args.allow_label_overlap,
-            args.num_prefix_selections,
-            args.bsz,
-        ]
-        ict = ICT(args.model_name, args.task_format, args.device, args.load_model_path)
-        task2examples = pkl.load(open(args.task2examples, "rb"))
-        task2templates = pkl.load(open(args.task2templates, "rb"))
-        task2verbalizers = pkl.load(open(args.task2verbalizers, "rb"))
-        ict.meta_test(
-            task2examples,
-            task2templates,
-            task2verbalizers,
-            args.num_demonstrations,
-            args.example_delimiter,
-            args.allow_label_overlap,
-            args.num_prefix_selections,
-            args.bsz,
-        )

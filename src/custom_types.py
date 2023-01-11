@@ -34,11 +34,26 @@ class Example(TypedDict):
     """The label of the task for the given input.
 	e.g. For LAMA, the name of a country that maintains diplomatic relations with the input country."""
 
+class TemplateExample(TypedDict):
+    """Similar to Example, but also includes the template associated with the datapoint.
+    In this way, there is no multiple possible templates for each example."""
+    _input: str
+    """The input to the task e.g. For LAMA, the name of a country.
+    For BiClfs, typically a sentence-like datapoint."""
+    template: str
+    """The template associated with this example's input and label.
+    For e.g., <input> Does this review has a positive sentiment? <label>."""
+    _label: str
+    """The label of the example with the given input. e.g. For LAMA, the name
+    of a country that is at war with the <input> country. For BiClfs, this is
+    either a yes or no answer."""
 
 Task2Examples = dict[Task, list[Example]]
 """List of all the examples (input, label pairs) for a given task.
 e.g. For LAMA, the task might be the relations between two countries
 and the examples might be pairs of countries."""
+
+Task2TemplateExamples = dict[Task, list[Example]]
 
 Template = str
 """Template for the task, used to fill in the input and label for a given example.

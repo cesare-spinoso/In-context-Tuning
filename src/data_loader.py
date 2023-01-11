@@ -1,4 +1,5 @@
 import random
+import warnings
 from typing import Literal
 
 from transformers import PreTrainedTokenizer
@@ -46,7 +47,11 @@ class DataLoader:
                 verbalizer_wordids.append(wordids[0])
             self.task2verbalizer_worids[task] = verbalizer_wordids
 
-    def _check_input_same(self, example1: Example, example2: Example) -> bool:
+    def _check_input_same(
+        self,
+        example1: Union[Example, TemplateExample],
+        example2: Union[Example, TemplateExample]
+        ) -> bool:
         """Checks that two examples have the same value for each of its keys.
         Skips this check for the <label> key."""
         assert (
@@ -59,8 +64,8 @@ class DataLoader:
 
     def _sample_demonstrations(
         self,
-        query_example: Example,
-        support_examples: list[Example],
+        query_example: Union[Example, TemplateExample],
+        support_examples: Union[list[Example], list[TemplateExample]],
         num_demonstrations: int,
         allow_label_overlap: bool,
     ) -> list[int]:
@@ -120,8 +125,8 @@ class DataLoader:
 
     def _encode_input_str(
         self,
-        prefix_examples: list[Example],
-        query_example: Example,
+        prefix_examples: Union[list[Example], list[TemplateExample]],
+        query_example: Union[Example, TemplateExample],
         template: Template,
         verbalizers: list[Verbalizer],
     ) -> str:
@@ -134,28 +139,41 @@ class DataLoader:
         # token (for MLM) or removing it (for CLM).
         input_texts = []
         for example in prefix_examples:
-            _, templated_example_with_label = self._encode_example_with_template(
-                template, example, verbalizers
-            )
+            if template is not None:
+                _, templated_example_with_label = self._encode_example_with_template(
+                    template, example, verbalizers
+                )
+            else:
+                # Then this is a TemplateExample
+                example = {"<input>": example["<input>"], "<label>": example["<label>"]}
+                extracted_template = example["template"]
+                _, templated_example_with_label = self._encode_example_with_template(
+                    extracted_template, example, verbalizers
+                )
             input_texts.append(templated_example_with_label)
-        query_example_masked, _ = self._encode_example_with_template(
-            template, query_example, verbalizers
-        )
+        if template is None:
+            query_example = {"<input>": query_example["<input>"], "<label>": query_example["<label>"]}
+            extracted_templated = query_example["template"]
+            query_example_masked, _ = self._encode_example_with_template(
+                extracted_template, query_example, verbalizers
+            )
         # Convert to string and then to model's token ids
         input_text = self.example_delimiter.join(input_texts + [query_example_masked])
         input_ids = self.tokenizer.encode(input_text)
-        # TODO: Remove this assertion because might just want to truncate instead
-        assert len(input_ids) <= self.tokenizer.model_max_length
+        # Warn the user
+        if (len_input_ids := len(input_ids)) > (model_max_length := self.tokenizer.model_max_length):
+            warnings.warn(f"MODEL LENGTH EXCEEDED. Length of input text {input_text} is {len_input_ids}. " +
+            f"This exceeds the model's max length of {model_max_length}.")
         return input_text
 
     def prepare_input(
         self,
         task: Task,
-        query_example: Example,
-        support_examples: list[Example],
+        query_example: Union[Example, TemplateExamples],
+        support_examples: Union[list[Example], list[TemplateExamples]],
         num_demonstrations: int,
-        template: Template,
         allow_label_overlap: bool,
+        template: Template = None,
     ) -> ModelInput:
         """Sample the prefix examples (i.e. the few shot examples) and then assemble
         them into a string that will be passed to the model."""

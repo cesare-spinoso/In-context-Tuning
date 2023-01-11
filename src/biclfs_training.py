@@ -3,7 +3,7 @@ import itertools
 from pathlib import Path
 from typing import NamedTuple, OrderedDict
 import numpy as np
-from ict import ICT
+from ict_2 import ICT
 from tqdm import tqdm
 from copy import deepcopy
 
@@ -34,10 +34,12 @@ def main():
     example_delimiter = " "
     batch_size = 32 # Smaller batch size than lama
     num_warmup_steps = 100
-    allow_label_overlap = False
+    # Set this to True otherwise a positive example could only
+    # learn from all negative examples
+    allow_label_overlap = True 
     device = "cuda"
-    num_prefix_selections = 10 # Large number of selections than lama
-    metrics = ["mrr", "precision1", "precision10"]
+    num_prefix_selections = 20 # Large number of selections than lama
+    metrics = ["mrr", "precision1", "precision10", "auc"]
     hp_level_combinations = list(itertools.product(number_of_epochs, learning_rates))
 
     # Prepare data
@@ -61,12 +63,14 @@ def main():
     # Prepare data structures to hold results for the table
     # Trying to replicate
     table_level_results = {}
+    selected_model_names = {}
 
     for model_name, num_demonstrations in tqdm(
         table_level_combinations,
         desc=f"Table Level Loop",
     ):
         table_level_results[(model_name, num_demonstrations)] = []
+        selected_model_names[(model_name, num_demonstrations)] = []
         for fold_idx, fold in tqdm(
             enumerate(cv_split), desc=f"Fold Loop"
         ):
@@ -90,7 +94,7 @@ def main():
             test_task2examples = {task: testing_data[task] for task in test_tasks}
             test_task2templates = {task: testing_templates[task] for task in test_tasks}
             test_task2verbalizers = {task: verbalizers for task in test_tasks}
-            import pdb; pdb.set_trace();
+
             # Best val score tracker
             best_val_score = 0
             ict_max = None
@@ -98,7 +102,8 @@ def main():
                 hp_level_combinations,
                 desc=f"HP Level Loop"
             ):
-                ict = ICT(model_name=model_name, task_format=task_format, device=device)
+                ict_identifier = f"model_{model_name}_k_{num_demonstrations}_fold_{fold_idx}_epochs_{epochs}_lr_{lr}"
+                ict = ICT(model_name=model_name, task_format=task_format, device=device, identifier=ict_identifier)
                 # Meta-train
                 ict.meta_train(
                     task2examples=train_task2examples,
@@ -113,7 +118,7 @@ def main():
                     bsz=batch_size,
                     output_dir=parent_dir
                     / "output_biclfs"
-                    / f"model_{model_name}_k_{num_demonstrations}_fold_{fold_idx}_epochs_{epochs}_lr_{lr}",
+                    / ict_identifier,
                 )
                 # Meta-test on val
                 _, val_task2scores = ict.meta_test(
@@ -155,17 +160,17 @@ def main():
                 num_prefix_selections=num_prefix_selections,
                 bsz=batch_size,
             )
+            # Save the best models for each fold (to be used afterwards)
+            selected_model_names[(model_name, num_demonstrations)].append(ict_max.identifier)
             # Average across tasks
-            test_metric = np.mean(
-                [task_score["precision1"] for task_score in test_task2scores.values()]
-            )
+            test_metric = [
+                np.mean([task_score[metric] for task_score in test_task2scores.values()])
+                for metric in metrics
+            ]
             table_level_results[(model_name, num_demonstrations)].append(test_metric)
-        # Pickle per-fold results
-        with open(parent_dir / "fold_level_results_biclfs.pkl", "wb") as f:
-            pkl.dump(table_level_results, f)
         # Average across folds
         table_level_results[(model_name, num_demonstrations)] = np.mean(
-            table_level_results[(model_name, num_demonstrations)]
+            table_level_results[(model_name, num_demonstrations)], axis=0
         )
         # Pickle the table results as they come in
         with open(parent_dir / "table_level_results_biclfs.pkl", "wb") as f:
