@@ -47,14 +47,10 @@ def main():
         open(parent_dir / "data_biclfs" / "cross_validation_splits.pkl", "rb")
     )
     training_data = pkl.load(
-        open(parent_dir / "data_biclfs" / "training_data.pkl", "rb")
+        open(parent_dir / "data_biclfs" / "training_data_templated.pkl", "rb")
     )
-    training_templates = pkl.load(
-        open(parent_dir / "data_biclfs" / "training_templates.pkl", "rb")
-    )
-    testing_data = pkl.load(open(parent_dir / "data_biclfs" / "testing_data.pkl", "rb"))
-    testing_templates = pkl.load(
-        open(parent_dir / "data_biclfs" / "testing_templates.pkl", "rb")
+    testing_data = pkl.load(
+        open(parent_dir / "data_biclfs" / "testing_data_templated.pkl", "rb")
     )
 
     # Load verbalizers
@@ -87,17 +83,12 @@ def main():
             )
             # Training
             train_task2examples = {task: training_data[task] for task in train_tasks}
-            train_task2templates = {
-                task: training_templates[task] for task in train_tasks
-            }
             train_task2verbalizers = {task: verbalizers for task in train_tasks}
             # Validation
             val_task2examples = {task: testing_data[task] for task in val_tasks}
-            val_task2templates = {task: testing_templates[task] for task in val_tasks}
             val_task2verbalizers = {task: verbalizers for task in val_tasks}
             # Testing
             test_task2examples = {task: testing_data[task] for task in test_tasks}
-            test_task2templates = {task: testing_templates[task] for task in test_tasks}
             test_task2verbalizers = {task: verbalizers for task in test_tasks}
 
             # Best val score tracker
@@ -127,7 +118,6 @@ def main():
                 # Meta-test on val
                 _, val_task2scores = ict.meta_test(
                     val_task2examples,
-                    val_task2templates,
                     task2verbalizers=val_task2verbalizers,
                     num_demonstrations=num_demonstrations,
                     example_delimiter=example_delimiter,
@@ -150,13 +140,13 @@ def main():
                 ]
                 # Track best val score, only meta-test best ict
                 # Use precision1 as the metric to track
+                # Both for LAMA and BiCLFS (where p@1 is the accuracy)
                 if val_metric2avg_scores[1] > best_val_score:
                     best_val_score = val_metric2avg_scores[1]
                     ict_max = deepcopy(ict)
             # Meta-test with ict_max on test
             _, test_task2scores = ict_max.meta_test(
                 test_task2examples,
-                test_task2templates,
                 task2verbalizers=test_task2verbalizers,
                 num_demonstrations=num_demonstrations,
                 example_delimiter=example_delimiter,
@@ -181,6 +171,8 @@ def main():
             table_level_results[(model_name, num_demonstrations)], axis=0
         )
         # Pickle the table results as they come in
+        with open(parent_dir / "selected_model_names_biclfs.pkl", "wb") as f:
+            pkl.dump(selected_model_names, f)
         with open(parent_dir / "table_level_results_biclfs.pkl", "wb") as f:
             pkl.dump(table_level_results, f)
 
