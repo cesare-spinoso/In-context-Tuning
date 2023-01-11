@@ -149,7 +149,6 @@ class ICT:
         # Begin training
         self.model.train()
         for _ in trange(num_epochs, desc="Epoch training."):
-            break
             # Shuffle the batches (so that e.g. don't see all the same task in a row)
             random.shuffle(epoch_train_examples)
             train_loss = []
@@ -233,9 +232,6 @@ class ICT:
                     )
                     input_texts.append(input_text)
                     labels.append(query_example["<label>"])
-            import pdb
-
-            pdb.set_trace()
             # TODO: Check the contents of input_texts
             # Predict on the input, in batches
             self.model.eval()
