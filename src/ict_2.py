@@ -229,9 +229,6 @@ class ICT:
                     )
                     input_texts.append(input_text)
                     labels.append(query_example["<label>"])
-            import pdb
-
-            pdb.set_trace()
             # TODO: Check the contents of input_texts
             # Predict on the input, in batches
             self.model.eval()

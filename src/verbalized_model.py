@@ -72,7 +72,7 @@ class VerbalizedModel(nn.Module):
             output_logits = torch.vstack(logits_verbalizers)
         elif self.task_format == "clm":
             # Pass input to the language model
-            output = self.model(**input_dict)
+            output = self.lm_model(**input_dict)
             # For CLM the output logits will be of shape (batch_size, seq_len, vocab_size)
             # seq_len will be the same as the input which is why the last token is selected
             output_logits = output.logits[:, -1, verbalizer_word_ids]
