@@ -64,6 +64,7 @@ def main():
     # Prepare data structures to hold results for the table
     # Trying to replicate
     table_level_results = {}
+    fold_level_results = {}
     selected_model_names = {}
 
     for model_name, num_demonstrations in tqdm(
@@ -71,6 +72,7 @@ def main():
         desc=f"Table Level Loop",
     ):
         table_level_results[(model_name, num_demonstrations)] = []
+        fold_level_results[(model_name, num_demonstrations)] = []
         selected_model_names[(model_name, num_demonstrations)] = []
         for fold_idx, fold in tqdm(enumerate(cv_split), desc=f"Fold Loop"):
             # Each fold is like a model with a training, validation and testing set
@@ -165,12 +167,14 @@ def main():
                 )
                 for metric in metrics
             ]
-            table_level_results[(model_name, num_demonstrations)].append(test_metric)
+            fold_level_results[(model_name, num_demonstrations)].append(test_metric)
         # Average across folds
         table_level_results[(model_name, num_demonstrations)] = np.mean(
-            table_level_results[(model_name, num_demonstrations)], axis=0
+            fold_level_results[(model_name, num_demonstrations)], axis=0
         )
         # Pickle the table results as they come in
+        with open(parent_dir / "results" / "fold_level_results_biclfs.pkl", "wb") as f:
+            pkl.dump(fold_level_results, f)
         with open(parent_dir / "results" / "selected_model_names_biclfs.pkl", "wb") as f:
             pkl.dump(selected_model_names, f)
         with open(parent_dir / "results" / "table_level_results_biclfs.pkl", "wb") as f:

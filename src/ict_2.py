@@ -219,8 +219,11 @@ class ICT:
             examples = task2template_examples[task]
             input_texts: list[ModelInput] = []
             labels: list[int] = []
+            current_number_prefix_selections = num_prefix_selections
+            if num_prefix_selections > len(examples):
+                current_number_prefix_selections = len(examples)
             for query_example in examples:
-                for _ in range(num_prefix_selections):
+                for _ in range(current_number_prefix_selections):
                     input_text = data_loader.prepare_input(
                         task,
                         query_example,
