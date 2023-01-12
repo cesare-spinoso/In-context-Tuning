@@ -177,8 +177,6 @@ class ICT:
                 scaler.step(optimizer)
                 scaler.update()
                 lr_scheduler.step()
-                break
-            break
 
             if output_dir is not None:
                 with open(os.path.join(output_dir, "train.log"), "a") as f:
