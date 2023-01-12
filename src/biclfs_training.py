@@ -39,7 +39,7 @@ def main():
     allow_label_overlap = True
     device = "cuda"
     num_prefix_selections = 20  # Large number of selections than lama
-    metrics = ["mrr", "precision1", "precision10", "auc"]
+    metrics = ["mrr", "precision1", "precision10"]
     hp_level_combinations = list(itertools.product(number_of_epochs, learning_rates))
 
     # Prepare data
@@ -171,9 +171,9 @@ def main():
             table_level_results[(model_name, num_demonstrations)], axis=0
         )
         # Pickle the table results as they come in
-        with open(parent_dir / "selected_model_names_biclfs.pkl", "wb") as f:
+        with open(parent_dir / "results" / "selected_model_names_biclfs.pkl", "wb") as f:
             pkl.dump(selected_model_names, f)
-        with open(parent_dir / "table_level_results_biclfs.pkl", "wb") as f:
+        with open(parent_dir / "results" / "table_level_results_biclfs.pkl", "wb") as f:
             pkl.dump(table_level_results, f)
 
 
