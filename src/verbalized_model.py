@@ -72,7 +72,7 @@ class VerbalizedModel(nn.Module):
             output_logits = torch.vstack(logits_verbalizers)
         elif self.task_format == "clm":
             # Pass input to the language model
-            output = self.lm_model(**input_dict)
+            output = self.model(**input_dict)
             # For CLM the output logits will be of shape (batch_size, seq_len, vocab_size)
             # seq_len will be the same as the input which is why the last token is selected
             output_logits = output.logits[:, -1, verbalizer_word_ids]
@@ -82,12 +82,5 @@ class VerbalizedModel(nn.Module):
         if labels is None:
             return output_logits  # (batch size, len(verbalizer_word_ids)), both mlm and clm
         else:
-            loss = [
-                self.loss_fct(
-                    output_logits[example_idx].unsqueeze(dim=0),
-                    labels[example_idx : example_idx + 1],
-                )
-                for example_idx in range(len(output_logits))
-            ]
-            loss = torch.mean(torch.hstack(loss))
+            loss = self.loss_fct(output_logits, labels)
             return loss, output_logits

@@ -45,7 +45,7 @@ def parameters(dataset_name: str) -> dict:
         params["num_prefix_selections"] = 5
         params["metrics"] = ["mrr", "precision1", "precision10"]
     elif dataset_name == "biclfs":
-        params["model_names"] = ["gpt2-medium", "gpt2-large"]
+        params["model_names"] = ["gpt2", "gpt2-medium", "gpt2-large"]
         params["number_of_demonstrations"] = [5, 0]
         params["task_format"] = "clm"
         params["number_of_epochs"] = [10, 15, 30]
