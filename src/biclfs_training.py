@@ -32,7 +32,7 @@ def main():
     number_of_epochs = [10, 15, 30]  # This might be too much
     learning_rates = [1e-7, 3e-7, 1e-6, 3e-6]
     example_delimiter = " "
-    batch_size = 32  # Smaller batch size than lama
+    batch_size = 16  # Smaller batch size than lama
     num_warmup_steps = 100
     # Set this to True otherwise a positive example could only
     # learn from all negative examples
@@ -175,7 +175,9 @@ def main():
         # Pickle the table results as they come in
         with open(parent_dir / "results" / "fold_level_results_biclfs.pkl", "wb") as f:
             pkl.dump(fold_level_results, f)
-        with open(parent_dir / "results" / "selected_model_names_biclfs.pkl", "wb") as f:
+        with open(
+            parent_dir / "results" / "selected_model_names_biclfs.pkl", "wb"
+        ) as f:
             pkl.dump(selected_model_names, f)
         with open(parent_dir / "results" / "table_level_results_biclfs.pkl", "wb") as f:
             pkl.dump(table_level_results, f)
