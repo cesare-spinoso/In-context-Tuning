@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH --partition=unkillable                           # Ask for unkillable job
+#SBATCH --partition=long                           # Ask for unkillable job
 #SBATCH --cpus-per-task=6                                # Ask for 6 CPUs
-#SBATCH --gres=gpu:1                                     # Ask for 1 GPU
-#SBATCH --mem=30G                                        # Ask for 30 GB of RAM
+#SBATCH --gres=gpu:1                                    # Ask for 1 GPU                                        # Ask for 30 GB of RAM
+#SBATCH --mem-per-gpu=48GB
 #SBATCH --time=24:00:00                                  # The job will run for 3 hours
 #SBATCH --output=results/biclfs_training_job_output.txt
 #SBATCH --error=results/biclfs_training_job_error.txt
@@ -15,4 +15,4 @@ module --quiet load anaconda/3
 conda activate ict
 
 # 3. Launch
-python src/biclfs_training.py
+python src/training.py 
