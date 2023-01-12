@@ -185,6 +185,12 @@ class DataLoader:
     ) -> ModelInput:
         """Sample the prefix examples (i.e. the few shot examples) and then assemble
         them into a string that will be passed to the model."""
+        if len(support_examples) < num_demonstrations:
+            # Minus 1 because don't include the query itself
+            # NOTE: I'm assuming that this is ok because even if there are 4
+            # examples in the support set, can find 4 different variations of
+            # cycling through them
+            num_demonstrations = len(support_examples) - 1
         prefix_example_idxs = self._sample_demonstrations(
             query_example, support_examples, num_demonstrations, allow_label_overlap
         )
