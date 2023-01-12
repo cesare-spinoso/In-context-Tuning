@@ -23,7 +23,7 @@ class HPKey(NamedTuple):
 def main():
     # Table setup
     model_names = ["gpt2-medium", "gpt2-large"]
-    number_of_demonstrations = [0, 5]
+    number_of_demonstrations = [5, 0]
     task_format = "clm"
     table_level_combinations = list(
         itertools.product(model_names, number_of_demonstrations)
