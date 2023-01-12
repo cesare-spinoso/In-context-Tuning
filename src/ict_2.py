@@ -177,6 +177,8 @@ class ICT:
                 scaler.step(optimizer)
                 scaler.update()
                 lr_scheduler.step()
+                break
+            break
 
             if output_dir is not None:
                 with open(os.path.join(output_dir, "train.log"), "a") as f:
@@ -229,7 +231,6 @@ class ICT:
                     )
                     input_texts.append(input_text)
                     labels.append(query_example["<label>"])
-            # TODO: Check the contents of input_texts
             # Predict on the input, in batches
             self.model.eval()
             output_logits = []
@@ -273,6 +274,5 @@ class ICT:
                 ),  # This becomes the average accuracy for binary classification
                 "precision10": np.mean(precision),
                 "mrr": np.mean(mrr),
-                "auc": roc_auc_score(y_true=labels, y_score=predicted_logits),
             }
         return task2preds, task2scores
