@@ -5,7 +5,7 @@ from typing import NamedTuple, OrderedDict
 import numpy as np
 from ict import ICT
 from tqdm import tqdm
-from copy import deepcopy
+from copy import deepcopy 
 
 parent_dir = Path(__file__).parent.parent
 lama_log_file = open(parent_dir / "lama_log.txt", "w")

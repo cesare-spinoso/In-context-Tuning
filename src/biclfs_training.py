@@ -22,7 +22,7 @@ class HPKey(NamedTuple):
 
 def main():
     # Table setup
-    model_names = ["gpt2-medium", "gpt2-large"]
+    model_names = ["gpt2", "gpt2-medium", "gpt2-large"]
     number_of_demonstrations = [5, 0]
     task_format = "clm"
     table_level_combinations = list(
@@ -32,7 +32,7 @@ def main():
     number_of_epochs = [10, 15, 30]  # This might be too much
     learning_rates = [1e-7, 3e-7, 1e-6, 3e-6]
     example_delimiter = " "
-    batch_size = 16  # Smaller batch size than lama
+    batch_size = 8  # Smaller batch size than lama
     num_warmup_steps = 100
     # Set this to True otherwise a positive example could only
     # learn from all negative examples

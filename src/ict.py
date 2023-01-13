@@ -6,9 +6,10 @@ from typing import Literal, Union
 
 import numpy as np
 import torch
-from tqdm import tqdm, trange
+from tqdm.notebook import tqdm, trange
 from transformers import AutoTokenizer
 from transformers.optimization import get_linear_schedule_with_warmup
+from DeBERTa import deberta
 
 from custom_types import (
     ModelInput,
@@ -45,8 +46,11 @@ class ICT:
                 load_model_path (Union[str, Path], optional): Path to previously trained model. Defaults to None.
         """
         assert task_format in ["clm", "mlm"]
-
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        if "deberta" in model_name:
+            vocab_path, vocab_type = deberta.load_vocab(pretrained_id='base')
+            self.tokenizer = deberta.tokenizers[vocab_type](vocab_path)
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         if "gpt2" in model_name:
             self.tokenizer.pad_token = self.tokenizer.eos_token
             # Note that this means the padding will begin from the left!
