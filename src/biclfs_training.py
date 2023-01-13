@@ -4,9 +4,21 @@ from pathlib import Path
 from typing import NamedTuple, OrderedDict
 import numpy as np
 from ict_2 import ICT
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 from copy import deepcopy
+import nvidia_smi
+import wandb
 
+
+def get_gpu_allocated_mem():
+    nvidia_smi.nvmlInit()
+    deviceCount = nvidia_smi.nvmlDeviceGetCount()
+    handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
+    info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+    return info.free / info.total
+
+
+wandb.init(project="ict", entity="cesare_spinoso")
 parent_dir = Path(__file__).parent.parent
 
 
@@ -29,7 +41,7 @@ def main():
         itertools.product(model_names, number_of_demonstrations)
     )
     # Training hyper-parameters
-    number_of_epochs = [10, 15, 30]  # This might be too much
+    number_of_epochs = [1, 15, 30]  # This might be too much
     learning_rates = [1e-7, 3e-7, 1e-6, 3e-6]
     example_delimiter = " "
     batch_size = 8  # Smaller batch size than lama
@@ -140,6 +152,16 @@ def main():
                 val_metric2avg_scores = [
                     np.mean(scores) for scores in metric2scores.values()
                 ]
+                wandb.log(
+                    dict(zip(metrics, val_metric2avg_scores)),
+                    group={
+                        "model name": model_name,
+                        "num demonstrations": num_demonstrations,
+                        "fold": fold_idx,
+                        "epochs": epochs,
+                        "lr": lr,
+                    },
+                )
                 # Track best val score, only meta-test best ict
                 # Use precision1 as the metric to track
                 # Both for LAMA and BiCLFS (where p@1 is the accuracy)

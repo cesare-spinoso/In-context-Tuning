@@ -176,14 +176,14 @@ class DataLoader:
         # Convert to string and then to model's token ids
         input_text = self.example_delimiter.join(input_texts + [query_example_masked])
         input_ids = self.tokenizer.encode(input_text)
-        # Warn the user
-        if (len_input_ids := len(input_ids)) > (
-            model_max_length := self.tokenizer.model_max_length
-        ):
-            warnings.warn(
-                f"MODEL LENGTH EXCEEDED. Length of input text is {len_input_ids}. "
-                + f"This exceeds the model's max length of {model_max_length}."
-            )
+        # # Warn the user
+        # if (len_input_ids := len(input_ids)) > (
+        #     model_max_length := self.tokenizer.model_max_length
+        # ):
+        #     warnings.warn(
+        #         f"MODEL LENGTH EXCEEDED. Length of input text is {len_input_ids}. "
+        #         + f"This exceeds the model's max length of {model_max_length}."
+        #     )
         return input_text
 
     def prepare_input(
