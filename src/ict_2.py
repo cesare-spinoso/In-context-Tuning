@@ -23,6 +23,8 @@ from custom_types import (
 )
 from data_loader import DataLoader
 from verbalized_model import VerbalizedModel
+import wandb
+
 
 
 class ICT:
@@ -78,6 +80,7 @@ class ICT:
         output_dir: Union[str, Path],
     ) -> None:
         """Run the meta-training described in the paper."""
+        wandb.init()
         # Verify that passed arguments are valid
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
