@@ -210,7 +210,7 @@ class ICT:
             current_number_prefix_selections = num_prefix_selections
             if num_prefix_selections > len(examples):
                 current_number_prefix_selections = len(examples)
-            current_number_demonstrations = len(examples) if num_prefix_selections > len(examples) else num_prefix_selections
+            current_number_demonstrations = len(examples) if num_demonstrations > len(examples) else num_demonstrations
             for query_example in examples:
                 for _ in range(current_number_prefix_selections):
                     input_text = data_loader.prepare_input(

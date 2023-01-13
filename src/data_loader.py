@@ -96,7 +96,12 @@ class DataLoader:
         assert len(selectable_example_idx) < len(support_examples)
         # Randomly sample demonstration examples
         # If num_demonstrations = 5 then this is 5-shot classification
-        prefix_example_idxs = random.sample(selectable_example_idx, num_demonstrations)
+        effective_num_demonstrations = (
+            len(selectable_example_idx)
+            if len(selectable_example_idx) < num_demonstrations
+            else num_demonstrations
+        )
+        prefix_example_idxs = random.sample(selectable_example_idx, effective_num_demonstrations)
         return prefix_example_idxs
 
     def _encode_example_with_template(
@@ -146,7 +151,10 @@ class DataLoader:
                 )
             else:
                 # Then this is a TemplateExample
-                extracted_example = {"<input>": example["<input>"], "<label>": example["<label>"]}
+                extracted_example = {
+                    "<input>": example["<input>"],
+                    "<label>": example["<label>"],
+                }
                 extracted_template = example["template"]
                 _, templated_example_with_label = self._encode_example_with_template(
                     extracted_template, extracted_example, verbalizers
