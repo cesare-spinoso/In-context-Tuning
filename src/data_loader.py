@@ -161,6 +161,10 @@ class DataLoader:
             query_example_masked, _ = self._encode_example_with_template(
                 extracted_template, extracted_query_example, verbalizers
             )
+        else:
+            query_example_masked, _ = self._encode_example_with_template(
+                template, query_example, verbalizers
+            )
         # Convert to string and then to model's token ids
         input_text = self.example_delimiter.join(input_texts + [query_example_masked])
         input_ids = self.tokenizer.encode(input_text)
@@ -169,7 +173,7 @@ class DataLoader:
             model_max_length := self.tokenizer.model_max_length
         ):
             warnings.warn(
-                f"MODEL LENGTH EXCEEDED. Length of input text {input_text} is {len_input_ids}. "
+                f"MODEL LENGTH EXCEEDED. Length of input text is {len_input_ids}. "
                 + f"This exceeds the model's max length of {model_max_length}."
             )
         return input_text

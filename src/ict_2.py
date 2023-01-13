@@ -6,7 +6,7 @@ from typing import Literal, Union
 
 import numpy as np
 import torch
-from tqdm import tqdm, trange
+from tqdm.notebook import tqdm, trange
 from transformers import AutoTokenizer
 from transformers.optimization import get_linear_schedule_with_warmup
 from sklearn.metrics import roc_auc_score
@@ -49,14 +49,13 @@ class ICT:
                 load_model_path (Union[str, Path], optional): Path to previously trained model. Defaults to None.
         """
         assert task_format in ["clm", "mlm"]
-
+        import pdb; pdb.set_trace();
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         if "gpt2" in model_name:
             self.tokenizer.pad_token = self.tokenizer.eos_token
             # Note that this means the padding will begin from the left!
             self.tokenizer.padding_side = "left"
         self.task_format = task_format
-
         self.model = VerbalizedModel(
             model_name=model_name, task_format=task_format, tokenizer=self.tokenizer
         )
@@ -65,6 +64,7 @@ class ICT:
         if load_model_path is not None:
             self.model.load_state_dict(torch.load(load_model_path, map_location="cpu"))
         self.model.to(device)
+        import pdb; pdb.set_trace();
 
     def meta_train(
         self,
@@ -143,12 +143,12 @@ class ICT:
             random.shuffle(training_examples)
             for idx in range(0, len(training_examples), bsz):
                 epoch_train_examples.append(training_examples[idx : idx + bsz])
+        import pdb; pdb.set_trace();
         # Begin training
         self.model.train()
         for _ in trange(num_epochs, desc="Epoch training."):
             # Shuffle the batches (so that e.g. don't see all the same task in a row)
             random.shuffle(epoch_train_examples)
-            train_loss = []
             # Language model fine-tuning
             for batch_example_idx in trange(
                 len(epoch_train_examples), desc="Batch training."
@@ -165,6 +165,7 @@ class ICT:
                 task = batch_train_examples[0].task
                 with torch.cuda.amp.autocast():
                     # Loss for k-way classification
+                    import pdb; pdb.set_trace();
                     loss, _ = self.model.forward(
                         input_dict,
                         torch.LongTensor(data_loader.task2verbalizer_worids[task]).to(
@@ -172,18 +173,11 @@ class ICT:
                         ),
                         torch.LongTensor(labels).to(self.device),
                     )
-                train_loss.append(loss.item())
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
                 lr_scheduler.step()
 
-            if output_dir is not None:
-                with open(os.path.join(output_dir, "train.log"), "a") as f:
-                    f.write(
-                        f"Epoch epoch_idx - train loss: {np.average(train_loss):.4f}\n"
-                    )
-                    f.flush()
 
         if output_dir is not None:
             torch.save(self.model.state_dict(), os.path.join(output_dir, "model.pkl"))
