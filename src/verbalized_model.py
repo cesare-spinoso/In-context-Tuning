@@ -71,7 +71,6 @@ class VerbalizedModel(nn.Module):
             # This will have shape (batch_size, len(verbalizer_word_ids))
             output_logits = torch.vstack(logits_verbalizers)
         elif self.task_format == "clm":
-            import pdb; pdb.set_trace();
             # Pass input to the language model
             output = self.lm_model(**input_dict)
             # For CLM the output logits will be of shape (batch_size, seq_len, vocab_size)
@@ -83,6 +82,5 @@ class VerbalizedModel(nn.Module):
         if labels is None:
             return output_logits  # (batch size, len(verbalizer_word_ids)), both mlm and clm
         else:
-            import pdb; pdb.set_trace();
             loss = self.loss_fct(output_logits, labels)
             return loss, output_logits
