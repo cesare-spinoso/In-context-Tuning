@@ -18,7 +18,6 @@ def get_gpu_allocated_mem():
     return info.free / info.total
 
 
-wandb.init(project="ict", entity="cesare_spinoso")
 parent_dir = Path(__file__).parent.parent
 
 
@@ -87,6 +86,15 @@ def main():
         fold_level_results[(model_name, num_demonstrations)] = []
         selected_model_names[(model_name, num_demonstrations)] = []
         for fold_idx, fold in tqdm(enumerate(cv_split), desc=f"Fold Loop"):
+            wandb.init(
+                project="ict",
+                entity="cesare_spinoso",
+                config={
+                    "model_name": model_name,
+                    "num_demonstrations": num_demonstrations,
+                    "fold_idx": fold_idx,
+                },
+            )
             # Each fold is like a model with a training, validation and testing set
             # Find optimal HP based on validation set and then get the test set results
             # Get the tasks for this fold
@@ -189,6 +197,7 @@ def main():
                 )
                 for metric in metrics
             ]
+            wandb.log(dict(zip(metrics, test_metric)))
             fold_level_results[(model_name, num_demonstrations)].append(test_metric)
         # Average across folds
         table_level_results[(model_name, num_demonstrations)] = np.mean(

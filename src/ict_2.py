@@ -27,7 +27,9 @@ import wandb
 
 
 import wandb
+
 wandb.init(project="ict", entity="cesare_spinoso")
+
 
 class ICT:
     """
@@ -54,7 +56,8 @@ class ICT:
         """
         assert task_format in ["clm", "mlm"]
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        if "gpt2" in model_name:
+        self.model_name = model_name
+        if "gpt2" in self.model_name:
             self.tokenizer.pad_token = self.tokenizer.eos_token
             # Note that this means the padding will begin from the left!
             self.tokenizer.padding_side = "left"
@@ -82,7 +85,16 @@ class ICT:
         output_dir: Union[str, Path],
     ) -> None:
         """Run the meta-training described in the paper."""
-        wandb.init()
+        wandb.init(
+            project="ict",
+            entity="cesare_spinoso",
+            config={
+                "model_name": self.model_name,
+                "k": num_demonstrations,
+                "lr": lr,
+                "epochs": num_epochs,
+            },
+        )
         # Verify that passed arguments are valid
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
@@ -174,11 +186,11 @@ class ICT:
                         ),
                         torch.LongTensor(labels).to(self.device),
                     )
+                wandb.log({"loss": loss.item()})
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
                 lr_scheduler.step()
-
 
         if output_dir is not None:
             torch.save(self.model.state_dict(), os.path.join(output_dir, "model.pkl"))
@@ -215,7 +227,11 @@ class ICT:
             current_number_prefix_selections = num_prefix_selections
             if num_prefix_selections > len(examples):
                 current_number_prefix_selections = len(examples)
-            current_number_demonstrations = len(examples) if num_demonstrations > len(examples) else num_demonstrations
+            current_number_demonstrations = (
+                len(examples)
+                if num_demonstrations > len(examples)
+                else num_demonstrations
+            )
             for query_example in examples:
                 for _ in range(current_number_prefix_selections):
                     input_text = data_loader.prepare_input(
