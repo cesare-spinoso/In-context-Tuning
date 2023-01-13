@@ -49,7 +49,6 @@ class ICT:
                 load_model_path (Union[str, Path], optional): Path to previously trained model. Defaults to None.
         """
         assert task_format in ["clm", "mlm"]
-        import pdb; pdb.set_trace();
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         if "gpt2" in model_name:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -64,7 +63,6 @@ class ICT:
         if load_model_path is not None:
             self.model.load_state_dict(torch.load(load_model_path, map_location="cpu"))
         self.model.to(device)
-        import pdb; pdb.set_trace();
 
     def meta_train(
         self,
@@ -143,7 +141,6 @@ class ICT:
             random.shuffle(training_examples)
             for idx in range(0, len(training_examples), bsz):
                 epoch_train_examples.append(training_examples[idx : idx + bsz])
-        import pdb; pdb.set_trace();
         # Begin training
         self.model.train()
         for _ in trange(num_epochs, desc="Epoch training."):
@@ -165,7 +162,6 @@ class ICT:
                 task = batch_train_examples[0].task
                 with torch.cuda.amp.autocast():
                     # Loss for k-way classification
-                    import pdb; pdb.set_trace();
                     loss, _ = self.model.forward(
                         input_dict,
                         torch.LongTensor(data_loader.task2verbalizer_worids[task]).to(
