@@ -25,12 +25,6 @@ from data_loader import DataLoader
 from verbalized_model import VerbalizedModel
 import wandb
 
-
-import wandb
-
-wandb.init(project="ict", entity="cesare_spinoso")
-
-
 class ICT:
     """
     Class implementing the In-Context Tuning Fine-Tuning paradigm developed by Chen et al. (2021).

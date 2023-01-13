@@ -160,16 +160,6 @@ def main():
                 val_metric2avg_scores = [
                     np.mean(scores) for scores in metric2scores.values()
                 ]
-                wandb.log(
-                    dict(zip(metrics, val_metric2avg_scores)),
-                    group={
-                        "model name": model_name,
-                        "num demonstrations": num_demonstrations,
-                        "fold": fold_idx,
-                        "epochs": epochs,
-                        "lr": lr,
-                    },
-                )
                 # Track best val score, only meta-test best ict
                 # Use precision1 as the metric to track
                 # Both for LAMA and BiCLFS (where p@1 is the accuracy)
