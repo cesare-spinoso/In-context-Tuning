@@ -34,14 +34,16 @@ class HPKey(NamedTuple):
 def main():
     # Table setup
     model_names = ["gpt2", "gpt2-medium", "gpt2-large"]
-    number_of_demonstrations = [5, 0]
+    number_of_demonstrations = [0, 5]
     task_format = "clm"
     table_level_combinations = list(
         itertools.product(model_names, number_of_demonstrations)
     )
     # Training hyper-parameters
-    number_of_epochs = [1, 15, 30]  # This might be too much
+    number_of_epochs = [10, 15, 30]  # This might be too much
+    number_of_epochs = [1]
     learning_rates = [1e-7, 3e-7, 1e-6, 3e-6]
+    learning_rates = [1e-7]
     example_delimiter = " "
     batch_size = 8  # Smaller batch size than lama
     num_warmup_steps = 100
