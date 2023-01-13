@@ -6,7 +6,7 @@ from typing import Literal, Union
 
 import numpy as np
 import torch
-from tqdm import tqdm, trange
+from tqdm.notebook import tqdm, trange
 from transformers import AutoTokenizer
 from transformers.optimization import get_linear_schedule_with_warmup
 from sklearn.metrics import roc_auc_score
@@ -24,6 +24,8 @@ from custom_types import (
 from data_loader import DataLoader
 from verbalized_model import VerbalizedModel
 
+import wandb
+wandb.init(project="ict", entity="cesare_spinoso")
 
 class ICT:
     """
