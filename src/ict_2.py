@@ -237,6 +237,8 @@ class ICT:
                     ):
                         input_texts.append(input_text)
                         labels.append(query_example["<label>"])
+            if len(input_texts) == 0:
+                continue
             # Predict on the input, in batches
             self.model.eval()
             output_logits = []
