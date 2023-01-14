@@ -221,23 +221,22 @@ class ICT:
             current_number_prefix_selections = num_prefix_selections
             if num_prefix_selections > len(examples):
                 current_number_prefix_selections = len(examples)
-            current_number_demonstrations = (
-                len(examples)
-                if num_demonstrations > len(examples)
-                else num_demonstrations
-            )
             for query_example in examples:
                 for _ in range(current_number_prefix_selections):
                     input_text = data_loader.prepare_input(
                         task,
                         query_example,
                         examples,
-                        current_number_demonstrations,
+                        num_demonstrations,
                         allow_label_overlap,
                         template=None,
                     )
-                    input_texts.append(input_text)
-                    labels.append(query_example["<label>"])
+                    if (
+                        len(self.tokenizer(input_text)["input_ids"])
+                        <= self.tokenizer.model_max_length
+                    ):
+                        input_texts.append(input_text)
+                        labels.append(query_example["<label>"])
             # Predict on the input, in batches
             self.model.eval()
             output_logits = []
