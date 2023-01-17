@@ -31,11 +31,13 @@ class TaskSampler(Sampler):
         batch_size: int,
         inner_shuffle: bool,
         outer_shuffle: bool,
+        subsample: int = None,
     ) -> None:
         self.dataset = dataset
         self.batch_size = batch_size
         self.inner_shuffle = inner_shuffle
         self.outer_shuffle = outer_shuffle
+        self.subsample = subsample
 
     def __iter__(self):
         batch_indices = []
@@ -55,10 +57,13 @@ class TaskSampler(Sampler):
                 batch_indices[i] = random.sample(batch, len(batch))
         if self.outer_shuffle:
             random.shuffle(batch_indices)
+        if self.subsample:
+            batch_indices = batch_indices[: self.subsample]
         for batch in batch_indices:
             yield batch
 
     def __len__(self):
+        # FIXME: If subsample is not None, this is not correct
         len(self.dataset)
 
 
@@ -72,3 +77,5 @@ dataloader = DataLoader(
 
 for batch in dataloader:
     print(batch)
+
+# TODO: Add a collator, potentially in the lightning module
