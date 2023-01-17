@@ -1,8 +1,11 @@
 from typing import Literal
 import pickle as pkl
+from custom_dataset import ICTDataset, TaskSampler
+from src.data_preprocessing import ICTPreprocessor
 
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from pytorch_lightning import LightningModule, LightningDataModule, Trainer
 from transformers import (
@@ -10,6 +13,7 @@ from transformers import (
     AutoModelForMaskedLM,
     AutoTokenizer,
     AdamW,
+    DataCollatorWithPadding,
     get_linear_schedule_with_warmup,
 )
 
@@ -17,40 +21,100 @@ from transformers import (
 class ICTData(LightningDataModule):
     def __init__(
         self,
-        data_path: str,
-        cv_split_path: str,
-        class_label_path: str,
         model_name: str,
         task_format: str,
         k: int,
+        delimiter: str,
+        allow_label_overlap: bool,
+        data_path: str,
+        cv_split_path: str,
+        class_label_path: str,
         batch_size: int,
         **kwargs,
     ):
         super().__init__()
-        self.data_path = data_path
-        self.cv_split_path = cv_split_path
-        self.class_label_path = class_label_path
         self.model_name = model_name
         self.task_format = task_format
         self.k = k
+        self.delimiter = delimiter
+        self.allow_label_overlap = allow_label_overlap
+        self.data_path = data_path
+        self.cv_split_path = cv_split_path
+        self.class_label_path = class_label_path
         self.batch_size = batch_size
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.ict_preprocessor = None
 
     def setup(self, stage: str):
-        pass
+        if self.ict_preprocessor is None:
+            raise ValueError("You need to call `prepare_data` first.")
+        self.datasets = {"train": [], "val": [], "test": []}
+        self.samplers = {"train": [], "val": [], "test": []}
+        self.class_label_token_ids = self.ict_preprocessor.get_class_label_token_ids()
+        for split in self.cv_split:
+            for fold_name in self.datasets.keys():
+                fold_data = self.ict_preprocessor.get_fold_data(
+                    self.data, split[fold_name]
+                )
+                task2prompts = self.ict_preprocessor.convert_examples_to_prompts(
+                    task2examples=fold_data,
+                    allow_label_overlap=self.allow_label_overlap,
+                    delimiter=self.delimiter,
+                )
+                dataset = ICTDataset(task2prompts)
+                self.datasets[fold_name].append(dataset)
+                sampler = TaskSampler(
+                    dataset, self.batch_size, inner_shuffle=True, outer_shuffle=True
+                )
+                self.samplers[fold_name].append(sampler)
 
     def prepare_data(self):
         # Load the data, cv_split and class labels
-        data, cv_split, class_labels = None, None, None
         with open(self.data_path, "rb") as f:
-            data = pkl.load(f)
+            self.data = pkl.load(f)
         with open(self.cv_split_path, "rb") as f:
-            cv_split = pkl.load(f)
+            self.cv_split = pkl.load(f)
         with open(self.class_label_path, "r") as f:
-            class_labels = [line for line in f.readlines() if len(line) > 0]
-        
+            self.class_labels = [line for line in f.readlines() if len(line) > 0]
+        # Create preprocessor
+        self.ict_preprocessor = ICTPreprocessor(
+            model_name=self.model_name,
+            task_format=self.task_format,
+            k=self.k,
+            delimiter=self.delimiter,
+        )
+
+    def _custom_collate_fn(self, batch):
+        collator = DataCollatorWithPadding(self.ict_preprocessor.get_tokenizer())
+        return {**collator(batch["prompt"]), "labels": batch["label"]}
+
+    def _create_dataloader(self, dataset, sampler):
+        return DataLoader(
+            dataset,
+            batch_sampler=sampler,
+            collate_fn=self._custom_collate_fn,
+        )
+
+    def _create_dataloaders(self, datasets, samplers):
+        return [
+            self._create_dataloader(dataset, sampler)
+            for dataset, sampler in zip(datasets, samplers)
+        ]
+
+    def train_dataloader(self):
+        train_datasets = self.datasets["train"]
+        train_samplers = self.samplers["train"]
+        return self._create_dataloaders(train_datasets, train_samplers)
+
+    def val_dataloader(self):
+        val_datasets = self.datasets["val"]
+        val_samplers = self.samplers["val"]
+        return self._create_dataloaders(val_datasets, val_samplers)
+
+    def test_dataloader(self):
+        test_datasets = self.datasets["test"]
+        test_samplers = self.samplers["test"]
+        return self._create_dataloaders(test_datasets, test_samplers)
 
 
 class ICTModel(LightningModule):

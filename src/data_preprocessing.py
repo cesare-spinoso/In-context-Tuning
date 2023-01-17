@@ -20,14 +20,12 @@ class ICTPreprocessor:
 
     def __init__(
         self,
-        k: int,
         model_name: str,
         task_format: Literal["mlm", "clm"],
-        delimiter: str,
+        k: int,
     ):
-        assert k > 0 and isinstance(k, int)
         assert task_format in ["mlm", "clm"]
-        assert isinstance(delimiter, str)
+        assert k > 0 and isinstance(k, int)
 
         self.k = k
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -36,7 +34,6 @@ class ICTPreprocessor:
             # Note that this means the padding will begin from the left!
             self.tokenizer.padding_side = "left"
         self.task_format = task_format
-        self.delimiter = delimiter
 
     def get_tokenizer(self) -> AutoTokenizer:
         return self.tokenizer
@@ -136,6 +133,7 @@ class ICTPreprocessor:
         prefix_examples: list[Example],
         query_example: Example,
         class_labels: list[ClassLabel],
+        delimiter: str,
     ) -> str:
         """Assemble the string that will be passed to the model. This string will be the
         concatenation of the task instructions, prefix examples, and the query example.
@@ -153,9 +151,7 @@ class ICTPreprocessor:
         query_template_replaced = self._replace_template_with_example(
             query_example, replace_label=False
         )
-        prompt = self.delimiter.join(
-            replaced_prefix_templates + [query_template_replaced]
-        )
+        prompt = delimiter.join(replaced_prefix_templates + [query_template_replaced])
         return prompt
 
     def _make_prompt(
@@ -163,6 +159,7 @@ class ICTPreprocessor:
         query_example: Example,
         support_examples: list[Example],
         allow_label_overlap: bool,
+        delimiter: str,
     ) -> str:
         """Sample the prefix examples (i.e. the few shot examples) and then assemble
         them into a string that will be passed to the model."""
@@ -174,7 +171,10 @@ class ICTPreprocessor:
         )
         prefix_examples = [support_examples[idx] for idx in prefix_example_idxs]
         prompt = self._merge_examples_into_prompt(
-            prefix_examples, query_example, class_labels=self.class_labels
+            prefix_examples,
+            query_example,
+            class_labels=self.class_labels,
+            delimiter=delimiter,
         )
         return prompt
 
@@ -182,6 +182,7 @@ class ICTPreprocessor:
         self,
         examples: list[Example],
         allow_label_overlap: bool,
+        delimiter: str,
     ) -> list[Prompt]:  # not sure what type this should be
         prompts = []
         for i, example in enumerate(examples):
@@ -194,7 +195,7 @@ class ICTPreprocessor:
         return prompts
 
     def convert_examples_to_prompts(
-        self, task2examples: Task2Examples, allow_label_overlap: bool
+        self, task2examples: Task2Examples, allow_label_overlap: bool, delimiter: str
     ) -> Task2Prompts:  # not sure what the exact type should be
         task2prompts = {}
         for task in task2examples:
@@ -281,5 +282,7 @@ fold_data = ict_preprocessor.get_fold_data(pickled_data)
 class_label_token_ids = ict_preprocessor.get_class_label_token_ids()
 
 task2prompts = ict_preprocessor.convert_examples_to_prompts(
-    task2examples=fold_data, allow_label_overlap=allow_label_overlap
+    task2examples=fold_data,
+    allow_label_overlap=allow_label_overlap,
+    delimiter=delimiter,
 )

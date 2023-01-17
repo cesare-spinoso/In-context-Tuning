@@ -1,6 +1,7 @@
 import random
 from custom_types import Task2Prompts
 from torch.utils.data import Dataset, Sampler, DataLoader
+from transformers import DataCollatorWithPadding
 
 
 class ICTDataset(Dataset):
