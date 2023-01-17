@@ -2,7 +2,7 @@ import random
 import warnings
 from typing import Literal, Union
 
-from transformers import PreTrainedTokenizer
+from transformers import AutoTokenizer
 
 from custom_types import (
     Prompt,
@@ -21,31 +21,32 @@ class ICTPreprocessor:
     def __init__(
         self,
         k: int,
-        task_folds: list[Task],
-        tokenizer: PreTrainedTokenizer,
+        model_name: str,
         task_format: Literal["mlm", "clm"],
-        class_labels: list[ClassLabel],
         delimiter: str,
     ):
         assert k > 0 and isinstance(k, int)
         assert task_format in ["mlm", "clm"]
-        assert isinstance(class_labels, list)
-        assert isinstance(task_folds, list)
         assert isinstance(delimiter, str)
 
         self.k = k
-        self.task_folds = task_folds
-        self.tokenizer = tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        if task_format == "clm":
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            # Note that this means the padding will begin from the left!
+            self.tokenizer.padding_side = "left"
         self.task_format = task_format
-        self.class_labels = class_labels
         self.delimiter = delimiter
 
-    def get_class_label_token_ids(self) -> list[int]:
+    def get_tokenizer(self) -> AutoTokenizer:
+        return self.tokenizer
+
+    def get_class_label_token_ids(self, class_labels: list[ClassLabel]) -> list[int]:
         # Get the token ids of each class label
         # This ensures that the indexing within the model
         # output is correct
         class_label_token_ids = []
-        for class_label in self.class_labels:
+        for class_label in class_labels:
             token_id = self.tokenizer(class_label, add_special_tokens=False)[
                 "input_ids"
             ]
@@ -53,9 +54,11 @@ class ICTPreprocessor:
             class_label_token_ids.append(token_id[0])
         return class_label_token_ids
 
-    def get_fold_data(self, task2examples: Task2Examples) -> Task2Examples:
+    def get_fold_data(
+        self, task2examples: Task2Examples, task_folds: list[Task]
+    ) -> Task2Examples:
         """Returns the examples for the given fold."""
-        return {task: task2examples[task] for task in self.task_folds}
+        return {task: task2examples[task] for task in task_folds}
 
     def _sample_demonstrations(
         self,
@@ -204,7 +207,10 @@ class ICTPreprocessor:
 from transformers import AutoTokenizer
 
 tokenizer = AutoTokenizer.from_pretrained("gpt2")
-task_folds = ["group0_2016SemEval6TweetEvalStanceHillary", "group2_KaggleCovidTweetSentiment"]
+task_folds = [
+    "group0_2016SemEval6TweetEvalStanceHillary",
+    "group2_KaggleCovidTweetSentiment",
+]
 task_format = "clm"
 k = 2
 allow_label_overlap = True
@@ -267,8 +273,6 @@ ict_preprocessor = ICTPreprocessor(
     k=k,
     task_folds=task_folds,
     tokenizer=tokenizer,
-    task_format=task_format,
-    class_labels=class_labels,
     delimiter=delimiter,
 )
 

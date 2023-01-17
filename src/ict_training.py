@@ -1,4 +1,5 @@
 from typing import Literal
+import pickle as pkl
 
 import torch
 import torch.nn as nn
@@ -12,8 +13,45 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
+
 class ICTData(LightningDataModule):
-    
+    def __init__(
+        self,
+        data_path: str,
+        cv_split_path: str,
+        class_label_path: str,
+        model_name: str,
+        task_format: str,
+        k: int,
+        batch_size: int,
+        **kwargs,
+    ):
+        super().__init__()
+        self.data_path = data_path
+        self.cv_split_path = cv_split_path
+        self.class_label_path = class_label_path
+        self.model_name = model_name
+        self.task_format = task_format
+        self.k = k
+        self.batch_size = batch_size
+
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.ict_preprocessor = None
+
+    def setup(self, stage: str):
+        pass
+
+    def prepare_data(self):
+        # Load the data, cv_split and class labels
+        data, cv_split, class_labels = None, None, None
+        with open(self.data_path, "rb") as f:
+            data = pkl.load(f)
+        with open(self.cv_split_path, "rb") as f:
+            cv_split = pkl.load(f)
+        with open(self.class_label_path, "r") as f:
+            class_labels = [line for line in f.readlines() if len(line) > 0]
+        
+
 
 class ICTModel(LightningModule):
     def __init__(
@@ -26,6 +64,7 @@ class ICTModel(LightningModule):
         num_warmup_steps: int,
         num_epochs: int,
         bsz: int,
+        **kwargs,
     ) -> None:
         super().__init__()
         self.save_hyperparameters(
