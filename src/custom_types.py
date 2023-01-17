@@ -30,7 +30,7 @@ class Example(TypedDict):
 
     _input: str
     """The input to the task e.g. For LAMA, the name of a country."""
-    _label: str
+    _label: int
     """The label of the task for the given input.
 	e.g. For LAMA, the name of a country that maintains diplomatic relations with the input country."""
 
@@ -45,7 +45,7 @@ class TemplateExample(TypedDict):
     template: str
     """The template associated with this example's input and label.
     For e.g., <input> Does this review has a positive sentiment? <label>."""
-    _label: str
+    _label: int
     """The label of the example with the given input. e.g. For LAMA, the name
     of a country that is at war with the <input> country. For BiClfs, this is
     either a yes or no answer."""
@@ -73,9 +73,21 @@ Verbalizer = str
 For LAMA, because each task is a 21K-way classification task, there are
 21K verbalizers."""
 
-Task2Verbalizers = dict[Task, list[Verbalizer]]
-"""List of all the verbalizers for a given task.
-e.g. For LAMA, each task will have the same list of verbalizers."""
+ClassLabel = str
+"""For LAMA, because each task is a 21K-way classification task, there are
+21K class labels."""
+
+Task2ClassLabels = dict[Task, list[ClassLabel]]
+"""List of all the class labels for a given task.
+e.g. For LAMA, each task will have the same list of class labels."""
+
+
+class Prompt(TypedDict):
+    prompt: str
+    label: int
+
+
+Task2Prompts = dict[Task, list[Prompt]]
 
 # TODO
 Task2Preds = None
