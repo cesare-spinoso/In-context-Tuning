@@ -1,11 +1,10 @@
 import pickle as pkl
-from copy import deepcopy
 from typing import Literal
 
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from pytorch_lightning import LightningDataModule, LightningModule, Trainer
+from pytorch_lightning import LightningDataModule, LightningModule, 
 from torch.utils.data import DataLoader
 from transformers import (
     AdamW,
@@ -155,7 +154,7 @@ class ICTData(LightningDataModule):
         else:
             self._fold_number = value
 
-    def setup(self, stage: str):
+    def setup(self, stage: str = "stage"):
         if self.ict_preprocessor is None:
             raise ValueError("You need to call `prepare_data` first.")
         self.datasets = {"train": [], "val": [], "test": []}
@@ -178,15 +177,12 @@ class ICTData(LightningDataModule):
 
     def prepare_data(self):
         # Load the data, cv_split and class labels
-        # with open(self.data_path, "rb") as f:
-        #     self.data = pkl.load(f)
-        # with open(self.cv_split_path, "rb") as f:
-        #     self.cv_split = pkl.load(f)
-        # with open(self.class_label_path, "r") as f:
-        #     self.class_labels = [line for line in f.readlines() if len(line) > 0]
-        self.data = ICTData.pickled_data
-        self.cv_split = ICTData.cv_splits
-        self.class_labels = ICTData.class_labels
+        with open(self.data_path, "rb") as f:
+            self.data = pkl.load(f)
+        with open(self.cv_split_path, "rb") as f:
+            self.cv_split = pkl.load(f)
+        with open(self.class_label_path, "r") as f:
+            self.class_labels = [line for line in f.readlines() if len(line) > 0]
         # Create preprocessor
         self.ict_preprocessor = ICTPreprocessor(
             model_name=self.model_name,
@@ -240,7 +236,6 @@ class ICTModel(LightningModule):
         task_format: Literal["mlm", "clm"],
         tokenizer: AutoTokenizer,
         class_label_token_ids: list[int],
-        num_folds: int,
         learning_rate: float,
         num_warmup_steps: int,
         num_epochs: int,
@@ -260,7 +255,6 @@ class ICTModel(LightningModule):
             self.model = AutoModelForMaskedLM.from_pretrained(model_name)
         elif self.task_format == "clm":
             self.model = AutoModelForCausalLM.from_pretrained(model_name)
-        self.models = [deepcopy(self.model) for _ in range(num_folds)]
         self.loss_fct = nn.CrossEntropyLoss()
 
     def forward(self, input_dict: dict) -> torch.Tensor:
@@ -283,8 +277,8 @@ class ICTModel(LightningModule):
         # Expects logits to be of size (N, num_class_labels) and labels to be of size (N,)
         over_threshold = logits > logits.gather(1, labels.unsqueeze(1))
         total_over_threshold = over_threshold.sum(axis=1)
-        precision_1 = (total_over_threshold == 0).mean()
-        precision_10 = (total_over_threshold <= 9).mean()
+        precision_1 = (total_over_threshold == 0).float().mean()
+        precision_10 = (total_over_threshold <= 9).float().mean()
         mrr = (1 / (total_over_threshold + 1)).mean()
         return {"precision_1": precision_1, "precision_10": precision_10, "mrr": mrr}
 
@@ -307,6 +301,7 @@ class ICTModel(LightningModule):
         )
         class_label_logits = self._get_class_label_logits(batch, outputs)
         val_loss = self.loss_fct(class_label_logits, batch["labels"])
+        self.log("val_loss", val_loss, prog_bar=True)
         return {
             "val_loss": val_loss,
             "logits": class_label_logits,
@@ -316,10 +311,31 @@ class ICTModel(LightningModule):
     def validation_epoch_end(self, outputs):
         logits = torch.cat([output["logits"] for output in outputs])
         labels = torch.cat([output["labels"] for output in outputs])
-        loss = torch.cat([output["val_loss"] for output in outputs]).mean()
+        loss = torch.cat([output["val_loss"].unsqueeze(0) for output in outputs]).mean()
         val_metrics = self._compute_metrics(logits, labels)
         self.log("val_loss", loss, prog_bar=True)
-        self.log_dict(**val_metrics, prog_bar=True)
+        for metric_name, metric_value in val_metrics.items():
+            self.log(f"val_{metric_name}", metric_value, prog_bar=True)
+
+    def test_step(self, batch, batch_idx):
+        outputs = self(
+            {
+                "input_ids": batch["input_ids"],
+                "attention_mask": batch["attention_mask"],
+            }
+        )
+        class_label_logits = self._get_class_label_logits(batch, outputs)
+        return {
+            "logits": class_label_logits,
+            "labels": batch["labels"],
+        }
+
+    def test_epoch_end(self, outputs):
+        logits = torch.cat([output["logits"] for output in outputs])
+        labels = torch.cat([output["labels"] for output in outputs])
+        test_metrics = self._compute_metrics(logits, labels)
+        for metric_name, metric_value in test_metrics.items():
+            self.log(f"test_{metric_name}", metric_value, prog_bar=True)
 
     def configure_optimizers(self):
         """Prepare optimizer and scheduler (linear warmup)"""
@@ -336,47 +352,3 @@ class ICTModel(LightningModule):
         )
         scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
         return [optimizer], [scheduler]
-
-
-from pathlib import Path
-
-parent_dir = Path(__file__).parent
-model_name = "gpt2"
-task_format = "clm"
-k = 2
-delimiter = " "
-allow_label_overlap = True
-batch_size = 3
-ict_data_module = ICTData(
-    model_name,
-    task_format,
-    k,
-    delimiter,
-    allow_label_overlap,
-    "mock_data_path",
-    "mock_cv_split_path",
-    "mock_class_label_path",
-    batch_size,
-)
-ict_data_module.prepare_data()
-ict_data_module.setup("mock_stage")
-ict_data_module.fold_number = 0
-tokenizer = ict_data_module.ict_preprocessor.get_tokenizer()
-class_label_token_ids = ict_data_module.ict_preprocessor.get_class_label_token_ids()
-model = ICTModel(
-    model_name=model_name,
-    task_format=task_format,
-    tokenizer=tokenizer,
-    class_label_token_ids=class_label_token_ids,
-    num_folds=len(ict_data_module.cv_split),
-    learning_rate=2e-5,
-    num_warmup_steps=100,
-    num_epochs=1,
-    bsz=batch_size,
-)
-trainer = Trainer(
-    max_epochs=1,
-    accelerator="auto",
-    devices=1 if torch.cuda.is_available() else None,  # limiting got iPython runs
-)
-trainer.fit(model, datamodule=ict_data_module)
