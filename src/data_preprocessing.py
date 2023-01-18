@@ -1,17 +1,9 @@
 import random
-import warnings
 from typing import Literal, Union
 
 from transformers import AutoTokenizer
 
-from custom_types import (
-    Prompt,
-    Task,
-    Example,
-    ClassLabel,
-    Task2Examples,
-    Task2Prompts,
-)
+from custom_types import ClassLabel, Example, Prompt, Task, Task2Examples, Task2Prompts
 
 
 class ICTPreprocessor:
@@ -199,6 +191,7 @@ class ICTPreprocessor:
         for task in task2examples:
             task2prompts[task] = self._convert_examples_to_prompts(task2examples[task])
         return task2prompts
+
 
 """
 model_name = "gpt2"
