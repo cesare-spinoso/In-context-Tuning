@@ -1,21 +1,23 @@
-from typing import Literal
 import pickle as pkl
-from custom_dataset import ICTDataset, TaskSampler
-from data_preprocessing import ICTPreprocessor
 from copy import deepcopy
+from typing import Literal
+
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+from pytorch_lightning import LightningDataModule, LightningModule, Trainer
 from torch.utils.data import DataLoader
-import pytorch_lightning as pl
-from pytorch_lightning import LightningModule, LightningDataModule, Trainer
 from transformers import (
+    AdamW,
     AutoModelForCausalLM,
     AutoModelForMaskedLM,
     AutoTokenizer,
-    AdamW,
     DataCollatorWithPadding,
     get_linear_schedule_with_warmup,
 )
+
+from custom_dataset import ICTDataset, TaskSampler
+from data_preprocessing import ICTPreprocessor
 
 
 class ICTData(LightningDataModule):
@@ -264,13 +266,8 @@ class ICTModel(LightningModule):
     def forward(self, input_dict: dict) -> torch.Tensor:
         return self.model(**input_dict)
 
-    def training_step(self, batch, batch_idx):
-        outputs = self(
-            {
-                "input_ids": batch["input_ids"],
-                "attention_mask": batch["attention_mask"],
-            }
-        )
+    def _get_class_label_logits(self, batch, outputs):
+        # Expected to return a tensor of size (batch_size, num_class_labels)
         output_logits = outputs.logits
         if self.task_format == "mlm":
             masked_token_ids = torch.nonzero(
@@ -280,7 +277,49 @@ class ICTModel(LightningModule):
             class_label_logits = output_logits[:, self.class_label_token_ids]
         elif self.task_format == "clm":
             class_label_logits = output_logits[:, -1, self.class_label_token_ids]
+        return class_label_logits
+
+    def _compute_metrics(self, logits, labels):
+        # Expects logits to be of size (N, num_class_labels) and labels to be of size (N,)
+        over_threshold = logits > logits.gather(1, labels.unsqueeze(1))
+        total_over_threshold = over_threshold.sum(axis=1)
+        precision_1 = (total_over_threshold == 0).mean()
+        precision_10 = (total_over_threshold <= 9).mean()
+        mrr = (1 / (total_over_threshold + 1)).mean()
+        return {"precision_1": precision_1, "precision_10": precision_10, "mrr": mrr}
+
+    def training_step(self, batch, batch_idx):
+        outputs = self(
+            {
+                "input_ids": batch["input_ids"],
+                "attention_mask": batch["attention_mask"],
+            }
+        )
+        class_label_logits = self._get_class_label_logits(batch, outputs)
         return self.loss_fct(class_label_logits, batch["labels"])
+
+    def validation_step(self, batch, batch_idx):
+        outputs = self(
+            {
+                "input_ids": batch["input_ids"],
+                "attention_mask": batch["attention_mask"],
+            }
+        )
+        class_label_logits = self._get_class_label_logits(batch, outputs)
+        val_loss = self.loss_fct(class_label_logits, batch["labels"])
+        return {
+            "val_loss": val_loss,
+            "logits": class_label_logits,
+            "labels": batch["labels"],
+        }
+
+    def validation_epoch_end(self, outputs):
+        logits = torch.cat([output["logits"] for output in outputs])
+        labels = torch.cat([output["labels"] for output in outputs])
+        loss = torch.cat([output["val_loss"] for output in outputs]).mean()
+        val_metrics = self._compute_metrics(logits, labels)
+        self.log("val_loss", loss, prog_bar=True)
+        self.log_dict(**val_metrics, prog_bar=True)
 
     def configure_optimizers(self):
         """Prepare optimizer and scheduler (linear warmup)"""

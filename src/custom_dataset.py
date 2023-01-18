@@ -1,7 +1,6 @@
 import random
 from custom_types import Task2Prompts
-from torch.utils.data import Dataset, Sampler, DataLoader
-from transformers import DataCollatorWithPadding
+from torch.utils.data import Dataset, Sampler
 
 
 class ICTDataset(Dataset):
@@ -66,6 +65,7 @@ class TaskSampler(Sampler):
     def __len__(self):
         # FIXME: If subsample is not None, this is not correct
         len(self.dataset)
+
 
 """
 from data_preprocessing import task2prompts
