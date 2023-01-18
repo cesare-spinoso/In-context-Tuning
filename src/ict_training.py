@@ -1,7 +1,7 @@
 from typing import Literal
 import pickle as pkl
 from custom_dataset import ICTDataset, TaskSampler
-from src.data_preprocessing import ICTPreprocessor
+from data_preprocessing import ICTPreprocessor
 
 import torch
 import torch.nn as nn
@@ -58,8 +58,6 @@ class ICTData(LightningDataModule):
                 )
                 task2prompts = self.ict_preprocessor.convert_examples_to_prompts(
                     task2examples=fold_data,
-                    allow_label_overlap=self.allow_label_overlap,
-                    delimiter=self.delimiter,
                 )
                 dataset = ICTDataset(task2prompts)
                 self.datasets[fold_name].append(dataset)
@@ -68,25 +66,33 @@ class ICTData(LightningDataModule):
                 )
                 self.samplers[fold_name].append(sampler)
 
-    def prepare_data(self):
+    def prepare_data(self, data, cv_split, class_labels):
         # Load the data, cv_split and class labels
-        with open(self.data_path, "rb") as f:
-            self.data = pkl.load(f)
-        with open(self.cv_split_path, "rb") as f:
-            self.cv_split = pkl.load(f)
-        with open(self.class_label_path, "r") as f:
-            self.class_labels = [line for line in f.readlines() if len(line) > 0]
+        # with open(self.data_path, "rb") as f:
+        #     self.data = pkl.load(f)
+        # with open(self.cv_split_path, "rb") as f:
+        #     self.cv_split = pkl.load(f)
+        # with open(self.class_label_path, "r") as f:
+        #     self.class_labels = [line for line in f.readlines() if len(line) > 0]
+        self.data = data
+        self.cv_split = cv_split
+        self.class_labels = class_labels
         # Create preprocessor
         self.ict_preprocessor = ICTPreprocessor(
             model_name=self.model_name,
             task_format=self.task_format,
             k=self.k,
+            class_labels=self.class_labels,
+            allow_label_overlap=self.allow_label_overlap,
             delimiter=self.delimiter,
         )
 
     def _custom_collate_fn(self, batch):
-        collator = DataCollatorWithPadding(self.ict_preprocessor.get_tokenizer())
-        return {**collator(batch["prompt"]), "labels": batch["label"]}
+        tokenizer = self.ict_preprocessor.get_tokenizer()
+        collator = DataCollatorWithPadding(tokenizer=tokenizer)
+        labels = torch.LongTensor([item["label"] for item in batch])
+        prompts = [item["prompt"] for item in batch]
+        return {**collator(tokenizer(prompts)), "labels": labels}
 
     def _create_dataloader(self, dataset, sampler):
         return DataLoader(
@@ -149,7 +155,9 @@ class ICTModel(LightningModule):
         return self.model(**input_dict)
 
     def training_step(self, batch, batch_idx):
-        outputs = self(**batch)
+        outputs = self(
+            {"input_ids": batch["input_ids"], "attention_mask": batch["attention_mask"]}
+        )
         output_logits = outputs.logits
         if self.task_format == "mlm":
             masked_token_ids = torch.nonzero(
@@ -177,3 +185,150 @@ class ICTModel(LightningModule):
         )
         scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
         return [optimizer], [scheduler]
+
+
+from pathlib import Path
+
+parent_dir = Path(__file__).parent
+
+model_name = "gpt2"
+task_format = "clm"
+k = 2
+delimiter = " "
+allow_label_overlap = True
+batch_size = 3
+
+pickled_data = {
+    "group0_2016SemEval6TweetEvalStanceHillary": [
+        {
+            "<input>": "Does #hillaryclinton lie and engage in cover-ups to do damage to the country or does she do it out of habit?  #tcot #uniteblue #SemST ",
+            "template": "<input> Does the tweet take an opposing stance on Hillary? <label>",
+            "<label>": 1,
+        },
+        {
+            "<input>": "#Democrats and #Obama reduce OUR Army by 40,000   MEANWHILE   Has increased IRS to 100,000  #HillaryClinton #Hillary #SemST ",
+            "template": "<input> Is there a supporting stance taken on Hillary in the tweet? <label>",
+            "<label>": 1,
+        },
+        {
+            "<input>": "@user I won't use the c-word, so I'll just say that everything Clinton does is a \"cunning stunt\". #HillaryonCNN #SemST ",
+            "template": "<input> Does the tweet take a supporting stance on Hillary? <label>",
+            "<label>": 1,
+        },
+        {
+            "<input>": "@user made me proud today!  Nothing like reinforcing what I already knew!  #SemST ",
+            "template": "<input> Does the tweet take a stance against Hillary? <label>",
+            "<label>": 1,
+        },
+        {
+            "<input>": "@user condemns anti-Israel boycotts as 'counter-productive' #SemST ",
+            "template": "<input> Does the tweet take a stance in favor of Hillary? <label>",
+            "<label>": 0,
+        },
+    ],
+    "group2_KaggleCovidTweetSentiment": [
+        {
+            "<input>": "Avoid the panic and empty shelves at the stores and stock up now with Amazon Pantry items! \r\r\nhttps://t.co/1gWRwNuc0x   \r\r\n\r\r\n#ad #coronavirus #prepper #BePrepared \r\r\n#Corona #CoronavirusOutbreak #Soldout\r\r\n#Coronavid19  #wuhanvirus #CoronavirusUSA \r\r\n#COVID19 #WuhanCoronavirus #toiletpaper",
+            "template": "<input> Does this tweet have a positive sentiment? <label>",
+            "<label>": 1,
+        },
+        {
+            "<input>": "With businesses closing, workers are going to be suffering big because of this pandemic. We NEED a stay on debt collection to prevent people from being thrown out of their homes and being financially ruined. \r\r\n\r\r\nRETWEET AND SIGN!!!\r\r\n\r\r\n#Coronadebtrelief\r\r\n\r\r\nhttps://t.co/Vn3l74Z1Qp",
+            "template": "<input> Is the user feeling positive about the situation? <label>",
+            "<label>": 1,
+        },
+        {
+            "<input>": "italy has more cases of the covid 19 than china but everyone stock piled on pasta and no ones ordered chinese food. i smell racism",
+            "template": "<input> Is the user feeling negative about the situation? <label>",
+            "<label>": 0,
+        },
+        {
+            "<input>": "Please RT Check on your elderly friends amp neighbors many of them are on a fixed income and can t afford to stock up on food tp They can t have groceries delivered but should be avoiding crowds Reach out amp offer a hand",
+            "template": "<input> Does this tweet have a negative sentiment? <label>",
+            "<label>": 1,
+        },
+    ],
+    "group0_KaggleTwitterPolitics": [
+        {
+            "<input>": "RT @Surgeon_General: We lose someone from an opioid overdoes every 12.5 minutes, with more than half dying at home. This impacts every commâ\x80¦",
+            "template": "<input> Is this a tweet from Republican Party? <label>",
+            "<label>": 0,
+        },
+        {
+            "<input>": "In the event of a military attack, @PacificCommand should be the source of the information and the lead in notificaâ\x80¦ https://t.co/o9A3iICqYq",
+            "template": "<input> Is this a tweet from Democratic Party? <label>",
+            "<label>": 1,
+        },
+        {
+            "<input>": "â\x80\x9cPart of Congressâ\x80\x99 recent abdication is letting the Executive Branch make all the tough decisions...we should haveâ\x80¦ https://t.co/0MIurgB0sX",
+            "template": "<input> Does this lean toward Democratic Party? <label>",
+            "<label>": 0,
+        },
+        {
+            "<input>": "GOP @HouseCommerce leaders are attempting to remedy their slow response to the #opioid epidemic by hastily markingâ\x80¦ https://t.co/StAmHRLzYb",
+            "template": "<input> Is this a Democratic post? <label>",
+            "<label>": 0,
+        },
+        {
+            "<input>": "Appreciated the opportunity to meet with @97AMW Commander, Col. Todd Hohn, to discuss the latest at Altus AFB https://t.co/zm2MapIbiU",
+            "template": "<input> Is this a Republican post? <label>",
+            "<label>": 1,
+        },
+    ],
+}
+cv_splits = [
+    {
+        "train": ["group0_2016SemEval6TweetEvalStanceHillary"],
+        "val": ["group2_KaggleCovidTweetSentiment"],
+        "test": ["group0_KaggleTwitterPolitics"],
+    },
+    {
+        "train": ["group2_KaggleCovidTweetSentiment"],
+        "val": ["group0_KaggleTwitterPolitics"],
+        "test": ["group0_2016SemEval6TweetEvalStanceHillary"],
+    },
+    {
+        "train": ["group0_KaggleTwitterPolitics"],
+        "val": ["group0_KaggleTwitterPolitics"],
+        "test": ["group2_KaggleCovidTweetSentiment"],
+    },
+]
+class_labels = ["no", "yes"]
+
+ict_data_module = ICTData(
+    model_name,
+    task_format,
+    k,
+    delimiter,
+    allow_label_overlap,
+    "mock_data_path",
+    "mock_cv_split_path",
+    "mock_class_label_path",
+    batch_size,
+)
+
+ict_data_module.prepare_data(pickled_data, cv_splits, class_labels)
+
+ict_data_module.setup("mock_stage")
+
+tokenizer = ict_data_module.ict_preprocessor.get_tokenizer()
+
+class_label_token_ids = ict_data_module.ict_preprocessor.get_class_label_token_ids()
+
+model = ICTModel(
+    model_name=model_name,
+    task_format=task_format,
+    tokenizer=tokenizer,
+    class_label_token_ids=class_label_token_ids,
+    learning_rate=2e-5,
+    num_warmup_steps=100,
+    num_epochs=1,
+    bsz=batch_size,
+)
+
+trainer = Trainer(
+    max_epochs=1,
+    accelerator="auto",
+    devices=1 if torch.cuda.is_available() else None,  # limiting got iPython runs
+)
+trainer.fit(model, datamodule=ict_data_module)

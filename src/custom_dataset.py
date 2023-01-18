@@ -67,7 +67,7 @@ class TaskSampler(Sampler):
         # FIXME: If subsample is not None, this is not correct
         len(self.dataset)
 
-
+"""
 from data_preprocessing import task2prompts
 
 dataset = ICTDataset(task2prompts)
@@ -78,5 +78,4 @@ dataloader = DataLoader(
 
 for batch in dataloader:
     print(batch)
-
-# TODO: Add a collator, potentially in the lightning module
+"""
